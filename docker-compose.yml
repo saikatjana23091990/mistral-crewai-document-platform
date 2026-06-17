@@ -1,0 +1,44 @@
+networks:
+  default:
+    name: document-platform-network
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: document-platform-backend
+    env_file:
+    - .env
+    environment:
+    - PYTHONUNBUFFERED=1
+    - HOST=0.0.0.0
+    - PORT=8000
+    healthcheck:
+      interval: 30s
+      retries: 3
+      start_period: 40s
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:8000/
+      timeout: 10s
+    ports:
+    - 8000:8000
+    restart: unless-stopped
+    volumes:
+    - ./backend/uploads:/app/uploads
+    - ./backend/outputs:/app/outputs
+    - ./backend/chroma_db:/app/chroma_db
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: document-platform-frontend
+    environment:
+    - VITE_API_BASE_URL=http://localhost:8000
+    ports:
+    - 5173:5173
+    restart: unless-stopped
+    volumes:
+    - ./frontend/dist:/usr/share/nginx/html
