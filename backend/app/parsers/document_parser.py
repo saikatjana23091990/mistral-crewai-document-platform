@@ -52,12 +52,30 @@ def parse_md(path):
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
+def parse_pptx(path):
+    from pptx import Presentation
+    prs = Presentation(path)
+    lines = []
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if hasattr(shape, "text"):
+                lines.append(shape.text)
+            if shape.has_table:
+                for row in shape.table.rows:
+                    row_text = " | ".join(cell.text_frame.text.strip() for cell in row.cells if cell.text_frame)
+                    if row_text.strip():
+                        lines.append(row_text)
+    return "\n".join(lines)
+
 def parse_document(path):
 
     ext = Path(path).suffix.lower()
 
     if ext == ".pdf":
         return parse_pdf(path)
+    
+    elif ext == ".pptx":
+        return parse_pptx(path)
 
     elif ext == ".docx":
         return parse_docx(path)

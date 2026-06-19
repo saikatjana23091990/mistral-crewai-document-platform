@@ -151,11 +151,12 @@ def run_conversion(source_text, reference_text, target_format="txt", resolutions
         If a reasonable human reviewer would consider the source content an obvious match for a reference field, populate that field using the best supported source value.
     '''
 
-    if target_format in ["docx", "xlsx"]:
+    if target_format in ["docx", "xlsx", "pptx"]:
         formatting_instructions += '''
         
-        CRITICAL EXTRAC RULES FOR DOCX TARGET:
+        CRITICAL EXTRAC RULES FOR STRUCTURED TARGETS:
         You MUST output ONLY a valid JSON object and nothing else (no markdown wrappers like ```json, no conversational text).
+        If the target is 'pptx' (PowerPoint), you MUST heavily summarize the extracted content to fit into graphical placeholders while keeping the core message intact.
         The JSON MUST have this exact structure:
         {
           "fields": {

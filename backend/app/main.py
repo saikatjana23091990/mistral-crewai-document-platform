@@ -104,6 +104,8 @@ def get_target_format(reference_filename: str) -> str:
         return "docx"
     elif ext == ".pdf":
         return "pdf"
+    elif ext == ".pptx":
+        return "pptx"
     else:
         return "txt"
 
@@ -367,6 +369,85 @@ def generate_output_file(converted_text: str, target_format: str, source_stem: s
         filename = f"{source_stem}_converted_{timestamp}.docx"
         output_path = OUTPUT_DIR / filename
         doc.save(output_path)
+        return output_path, filename
+
+    elif target_format == "pptx":
+        from pptx import Presentation
+        import re
+        if reference_path and Path(reference_path).exists():
+            prs = Presentation(reference_path)
+        else:
+            prs = Presentation()
+            prs.slides.add_slide(prs.slide_layouts[0])
+            
+        try:
+            cleaned_text = converted_text.strip()
+            if cleaned_text.startswith("```json"):
+                cleaned_text = cleaned_text[7:]
+            elif cleaned_text.startswith("```"):
+                cleaned_text = cleaned_text[3:]
+            if cleaned_text.endswith("```"):
+                cleaned_text = cleaned_text[:-3]
+            
+            data = json.loads(cleaned_text.strip())
+            fields = data.get("fields", {})
+            
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text_frame") and shape.text_frame:
+                        for p in shape.text_frame.paragraphs:
+                            for key, val in fields.items():
+                                if key and key.lower() in p.text.lower() and val:
+                                    original_text = p.text
+                                    new_text = original_text
+                                    
+                                    # Replace specific placeholders like <__>, <XX%>, <PRODUCT NAME>
+                                    if re.search(r'<[^>]+>', p.text):
+                                        new_text = re.sub(r'<[^>]+>', str(val), p.text, count=1)
+                                    # Handle underscore blanks
+                                    elif re.search(r'_{3,}', p.text):
+                                        new_text = re.sub(r'_{3,}', str(val), p.text, count=1)
+                                    # Handle colons
+                                    elif ":" in p.text and p.text.strip().endswith(":"):
+                                        new_text = p.text + " " + str(val)
+                                    # Exact match
+                                    elif key.lower() == p.text.strip().lower():
+                                        new_text = p.text.replace(p.text.strip(), str(val))
+                                    
+                                    if new_text != original_text:
+                                        if p.runs:
+                                            p.runs[0].text = new_text
+                                            for idx in range(1, len(p.runs)):
+                                                p.runs[idx].text = ""
+                                        else:
+                                            p.text = new_text
+                                        break
+                                        
+                    # Map tables (populate existing rows only, as python-pptx doesn't support adding rows natively)
+                    if shape.has_table:
+                        tables_data = data.get("tables", [])
+                        for table_data in tables_data:
+                            headers = table_data.get("headers", [])
+                            rows = table_data.get("rows", [])
+                            
+                            if len(shape.table.rows) > 0:
+                                doc_headers = [c.text_frame.text.strip() for c in shape.table.rows[0].cells if c.text_frame]
+                                if all(h in doc_headers for h in headers if h) or all(h in headers for h in doc_headers if h):
+                                    for row_idx, row_data in enumerate(rows):
+                                        target_row_idx = row_idx + 1 # skip header
+                                        if target_row_idx < len(shape.table.rows):
+                                            row_cells = shape.table.rows[target_row_idx].cells
+                                            for col_idx, cell_val in enumerate(row_data):
+                                                if col_idx < len(row_cells):
+                                                    row_cells[col_idx].text = str(cell_val)
+                                    break
+                                    
+        except Exception:
+            pass # fallback or ignore if json fails for pptx
+
+        filename = f"{source_stem}_converted_{timestamp}.pptx"
+        output_path = OUTPUT_DIR / filename
+        prs.save(output_path)
         return output_path, filename
 
     elif target_format == "pdf":

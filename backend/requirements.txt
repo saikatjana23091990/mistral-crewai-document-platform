@@ -22,3 +22,4 @@ python-dotenv
 google-generativeai
 boto3
 httpx
+python-pptx
