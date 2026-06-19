@@ -188,7 +188,7 @@ def detect_conflicts(source_data_list: list, reference_columns: list = None) -> 
                 conflicts.append({"field": col, "values": vals})
     return conflicts
 
-def generate_output_file(converted_text: str, target_format: str, source_stem: str, timestamp: str, reference_columns: list = None) -> tuple[Path, str]:
+def generate_output_file(converted_text: str, target_format: str, source_stem: str, timestamp: str, reference_columns: list = None, reference_path: str = None) -> tuple[Path, str]:
     if target_format == "xlsx":
         wb = Workbook()
         ws = wb.active
@@ -215,12 +215,61 @@ def generate_output_file(converted_text: str, target_format: str, source_stem: s
             cell.border = thin_border
             cell.alignment = Alignment(wrap_text=True)
 
-        extracted = _extract_data_for_columns(converted_text, columns)
-        for col_idx, col_name in enumerate(columns, start=1):
-            value = extracted.get(col_name) or "[Information not found in source documents]"
-            cell = ws.cell(row=2, column=col_idx, value=value)
-            cell.border = thin_border
-            cell.alignment = Alignment(wrap_text=True, vertical='top')
+        # Parse the JSON from converted_text
+        rows_to_write = []
+        try:
+            cleaned_text = converted_text.strip()
+            if cleaned_text.startswith("```json"):
+                cleaned_text = cleaned_text[7:]
+            elif cleaned_text.startswith("```"):
+                cleaned_text = cleaned_text[3:]
+            if cleaned_text.endswith("```"):
+                cleaned_text = cleaned_text[:-3]
+            data = json.loads(cleaned_text.strip())
+            
+            fields = data.get("fields", {})
+            tables = data.get("tables", [])
+            
+            # If there's a table that seems to match our columns, use its rows
+            if tables:
+                target_table = tables[0]
+                for tbl in tables:
+                    # check if headers overlap well with our columns
+                    headers = tbl.get("headers", [])
+                    if any(h.lower() in [c.lower() for c in columns] for h in headers if h):
+                        target_table = tbl
+                        break
+                        
+                headers = target_table.get("headers", [])
+                for row_data in target_table.get("rows", []):
+                    row_dict = dict(fields) # Start with base fields
+                    for i, val in enumerate(row_data):
+                        if i < len(headers) and headers[i]:
+                            row_dict[headers[i]] = val
+                    rows_to_write.append(row_dict)
+            else:
+                rows_to_write.append(fields)
+                
+        except Exception:
+            # Fallback if json parsing fails
+            rows_to_write = [{}]
+
+        if not rows_to_write:
+            rows_to_write = [{}]
+
+        current_row = 2
+        for row_dict in rows_to_write:
+            for col_idx, col_name in enumerate(columns, start=1):
+                # case-insensitive match
+                matched_val = "[Information not found in source documents]"
+                for k, v in row_dict.items():
+                    if k.lower() in col_name.lower() or col_name.lower() in k.lower():
+                        matched_val = v
+                        break
+                cell = ws.cell(row=current_row, column=col_idx, value=str(matched_val))
+                cell.border = thin_border
+                cell.alignment = Alignment(wrap_text=True, vertical='top')
+            current_row += 1
 
         for col_idx in range(1, len(columns) + 1):
             col_letter = chr(64 + col_idx) if col_idx <= 26 else 'A'
@@ -232,11 +281,89 @@ def generate_output_file(converted_text: str, target_format: str, source_stem: s
         return output_path, filename
 
     elif target_format == "docx":
-        doc = Document()
-        doc.add_heading("Converted Document", level=1)
-        for line in converted_text.split("\n"):
-            if line.strip():
-                doc.add_paragraph(line.strip())
+        if reference_path and Path(reference_path).exists():
+            doc = Document(reference_path)
+        else:
+            doc = Document()
+            doc.add_heading("Converted Document", level=1)
+            
+        try:
+            clean_text = converted_text.strip()
+            # Clean markdown if present
+            cleaned_text = converted_text.strip()
+            if cleaned_text.startswith("```json"):
+                cleaned_text = cleaned_text[7:]
+            elif cleaned_text.startswith("```"):
+                cleaned_text = cleaned_text[3:]
+            if cleaned_text.endswith("```"):
+                cleaned_text = cleaned_text[:-3]
+            cleaned_text = cleaned_text.strip()
+            
+            data = json.loads(cleaned_text)
+            
+            # Map fields to paragraphs
+            import re
+            fields = data.get("fields", {})
+            for p in doc.paragraphs:
+                for key, val in fields.items():
+                    if key and key.lower() in p.text.lower() and val:
+                        original_text = p.text
+                        if re.search(r'_{3,}', p.text):
+                            p.text = re.sub(r'_{3,}', str(val), p.text, count=1)
+                        elif ":" in p.text and p.text.strip().endswith(":"):
+                            p.text = p.text + " " + str(val)
+                        elif key.lower() == p.text.strip().lower():
+                            p.text = p.text + ": " + str(val)
+                        
+                        # Stop checking other keys if we modified this paragraph
+                        if p.text != original_text:
+                            break
+
+            # Map tables
+            tables_data = data.get("tables", [])
+            for table_data in tables_data:
+                headers = table_data.get("headers", [])
+                rows = table_data.get("rows", [])
+                
+                target_table = None
+                for t in doc.tables:
+                    if len(t.rows) > 0:
+                        doc_headers = [c.text.strip() for c in t.rows[0].cells]
+                        if all(h in doc_headers for h in headers if h) or all(h in headers for h in doc_headers if h):
+                            target_table = t
+                            break
+                
+                if target_table:
+                    for row_data in rows:
+                        row_cells = target_table.add_row().cells
+                        for i, cell_val in enumerate(row_data):
+                            if i < len(row_cells):
+                                row_cells[i].text = str(cell_val)
+                else:
+                    if headers and rows:
+                        doc.add_paragraph()
+                        new_t = doc.add_table(rows=1, cols=len(headers))
+                        new_t.style = 'Table Grid'
+                        hdr_cells = new_t.rows[0].cells
+                        for i, h in enumerate(headers):
+                            hdr_cells[i].text = str(h)
+                        for row_data in rows:
+                            row_cells = new_t.add_row().cells
+                            for i, cell_val in enumerate(row_data):
+                                if i < len(row_cells):
+                                    row_cells[i].text = str(cell_val)
+                                    
+        except json.JSONDecodeError:
+            if not reference_path or not Path(reference_path).exists():
+                for line in converted_text.split("\n"):
+                    if line.strip():
+                        doc.add_paragraph(line.strip())
+            else:
+                doc.add_paragraph("\n--- Converted Data ---\n")
+                for line in converted_text.split("\n"):
+                    if line.strip():
+                        doc.add_paragraph(line.strip())
+
         filename = f"{source_stem}_converted_{timestamp}.docx"
         output_path = OUTPUT_DIR / filename
         doc.save(output_path)
@@ -319,11 +446,13 @@ async def convert_document(
     detected_conflicts = detect_conflicts(source_data_list, reference_columns)
 
     try:
-        converted_output = run_conversion(
+        import asyncio
+        converted_output = await asyncio.to_thread(
+            run_conversion,
             combined_source_text,
             reference_text,
-            target_format=target_format,
-            resolutions=resolutions_dict
+            target_format,
+            resolutions_dict
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Conversion failed: {exc}") from exc
@@ -332,7 +461,7 @@ async def convert_document(
     source_stem = Path(source_filenames[0]).stem if len(source_filenames) == 1 else "multi_source"
 
     output_path, converted_filename = generate_output_file(
-        converted_output, target_format, source_stem, timestamp, reference_columns=reference_columns
+        converted_output, target_format, source_stem, timestamp, reference_columns=reference_columns, reference_path=str(reference_path)
     )
 
     try:

@@ -40,14 +40,15 @@ class BedrockProvider:
 
         try:
             creds = boto3.Session().get_credentials()
-            if creds:
+            if creds and not self.bearer:
                 self.client = boto3.client("bedrock-runtime", region_name=self.region)
                 self.use_boto3 = True
         except Exception:
             pass
 
-        if not self.use_boto3 and self.bearer and self.bearer.startswith("bedrock-api-key-"):
+        if self.bearer and self.bearer.startswith("bedrock-api-key-"):
             self.use_bearer = True
+            self.use_boto3 = False
 
     def configured(self) -> bool:
         return self.use_boto3 or self.use_bearer
@@ -257,6 +258,27 @@ class AgenticMemoryRAG:
 
     def _generate_llm_response(self, system_content: str, user_content: str, history: list) -> str:
         provider = self.provider
+
+        if provider == "groq":
+            groq_key = os.getenv("GROQ_API_KEY")
+            if groq_key:
+                try:
+                    import openai
+                    client = openai.OpenAI(
+                        api_key=groq_key,
+                        base_url="https://api.groq.com/openai/v1"
+                    )
+                    messages = [{"role": "system", "content": system_content}]
+                    messages.extend([{"role": h.get("role"), "content": h.get("content")} for h in history])
+                    messages.append({"role": "user", "content": user_content})
+                    
+                    response = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=messages
+                    )
+                    return response.choices[0].message.content
+                except Exception as e:
+                    return self._generate_curated_fallback_answer(user_content)
 
         if provider == "bedrock":
             try:

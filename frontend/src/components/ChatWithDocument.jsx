@@ -515,6 +515,7 @@ const ChatWithDocument = () => {
                 <MenuItem value="mistral">Mistral</MenuItem>
                 <MenuItem value="gemini">Gemini</MenuItem>
                 <MenuItem value="bedrock">AWS Bedrock</MenuItem>
+                <MenuItem value="groq">Groq</MenuItem>
               </Select>
             </FormControl>
           </Box>

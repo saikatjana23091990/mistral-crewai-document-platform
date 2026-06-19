@@ -5,10 +5,14 @@ def run_conversion(source_text, reference_text, target_format="txt", resolutions
         from crewai import Crew, Task
         from app.agents.document_agents import (
             extractor_agent,
+            normalizer_agent,
             formatter_agent,
             validator_agent
         )
-    except Exception:
+    except Exception as e:
+        import traceback
+        with open("error.log", "w") as f:
+            f.write(traceback.format_exc())
         return _fallback_conversion(source_text, reference_text, target_format, resolutions)
 
     resolutions_str = ""
@@ -124,8 +128,7 @@ def run_conversion(source_text, reference_text, target_format="txt", resolutions
 
 
 
-    formatting_task = Task(
-        description=f'''
+    formatting_instructions = f'''
         Convert the normalized mapped content into the REFERENCE structure exactly.
 
         TARGET FORMAT: {target_format.upper()}
@@ -146,8 +149,37 @@ def run_conversion(source_text, reference_text, target_format="txt", resolutions
 
         OUTPUT PRINCIPLE:
         If a reasonable human reviewer would consider the source content an obvious match for a reference field, populate that field using the best supported source value.
-        ''',
-        expected_output="Output strictly following the reference format with semantically mapped values and missing info clearly marked",
+    '''
+
+    if target_format in ["docx", "xlsx"]:
+        formatting_instructions += '''
+        
+        CRITICAL EXTRAC RULES FOR DOCX TARGET:
+        You MUST output ONLY a valid JSON object and nothing else (no markdown wrappers like ```json, no conversational text).
+        The JSON MUST have this exact structure:
+        {
+          "fields": {
+             "Field Name 1 from reference": "Mapped Value 1",
+             "Field Name 2 from reference": "Mapped Value 2"
+          },
+          "tables": [
+            {
+               "headers": ["Header 1", "Header 2"],
+               "rows": [
+                 ["Row 1 Col 1", "Row 1 Col 2"],
+                 ["Row 2 Col 1", "Row 2 Col 2"]
+               ]
+            }
+          ]
+        }
+        '''
+        expected_output = "A valid JSON object containing 'fields' and 'tables' mapping the values to the reference structure."
+    else:
+        expected_output = "Output strictly following the reference format with semantically mapped values and missing info clearly marked"
+
+    formatting_task = Task(
+        description=formatting_instructions,
+        expected_output=expected_output,
         agent=formatter_agent
     )
 
@@ -186,14 +218,12 @@ def run_conversion(source_text, reference_text, target_format="txt", resolutions
         agents=[
             extractor_agent,
             normalizer_agent,
-            formatter_agent,
-            validator_agent
+            formatter_agent
         ],
         tasks=[
             extraction_task,
             normalization_task,
-            formatting_task,
-            validation_task
+            formatting_task
         ],
         verbose=True
     )
@@ -201,7 +231,10 @@ def run_conversion(source_text, reference_text, target_format="txt", resolutions
     try:
         result = crew.kickoff()
         return str(result)
-    except Exception:
+    except Exception as e:
+        import traceback
+        with open("error.log", "w") as f:
+            f.write(traceback.format_exc())
         return _fallback_conversion(source_text, reference_text, target_format, resolutions)
 
 def _fallback_conversion(source_text, reference_text, target_format="txt", resolutions=None):

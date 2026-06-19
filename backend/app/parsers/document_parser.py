@@ -14,7 +14,16 @@ def parse_pdf(path):
 def parse_docx(path):
     from docx import Document
     doc = Document(path)
-    return "\n".join([p.text for p in doc.paragraphs])
+    lines = []
+    for p in doc.paragraphs:
+        if p.text.strip():
+            lines.append(p.text)
+    for t in doc.tables:
+        for row in t.rows:
+            row_text = " | ".join(c.text.strip() for c in row.cells)
+            if row_text.strip():
+                lines.append(row_text)
+    return "\n".join(lines)
 
 def parse_txt(path):
     with open(path, "r", encoding="utf-8") as f:
