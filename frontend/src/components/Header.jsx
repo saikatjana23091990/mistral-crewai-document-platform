@@ -37,23 +37,7 @@ const Header = ({ currentPage, setCurrentPage }) => {
     >
       {/* Logo Section */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Box
-          sx={{
-            width: 36,
-            height: 36,
-            borderRadius: 2,
-            background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontWeight: 'bold',
-            fontSize: '1.2rem',
-            boxShadow: '0 4px 10px rgba(124, 58, 237, 0.3)',
-          }}
-        >
-          D
-        </Box>
+        <img src="/logo.svg" alt="DocuGen AI Logo" style={{ width: 42, height: 42, objectFit: 'contain' }} />
         <Typography variant="h6" sx={{ fontWeight: 800, color: 'text.primary', letterSpacing: '-0.5px' }}>
           DocuGen AI
         </Typography>

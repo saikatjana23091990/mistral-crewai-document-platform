@@ -1,0 +1,1 @@
+{"provider": "groq", "model": "llama-4-maverick", "temperature": 0.5, "reasoningDepth": "fast", "memoryEnabled": true, "streamResponses": true, "includeCitations": true, "explainConflicts": true, "showConfidenceScores": true}

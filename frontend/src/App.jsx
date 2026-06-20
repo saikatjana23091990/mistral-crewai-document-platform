@@ -4,6 +4,7 @@ import Header from './components/Header'
 import ConvertDocument from './components/ConvertDocument'
 import ChatWithDocument from './components/ChatWithDocument'
 import StatsResults from './components/StatsResults'
+import Settings from './components/Settings'
 
 function App() {
   const [currentPage, setCurrentPage] = useState('convert')
@@ -17,8 +18,7 @@ function App() {
       case 'stats_results':
         return <StatsResults />
       case 'settings':
-        // Placeholder for Settings
-        return <Box sx={{ p: 3 }}>Settings Page (Coming Soon)</Box>
+        return <Settings />
       default:
         return <ConvertDocument />
     }

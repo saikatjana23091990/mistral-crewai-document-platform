@@ -93,6 +93,13 @@ const ChatWithDocument = () => {
 
   useEffect(() => {
     fetchHistory()
+    axios.get(`${API_BASE_URL}/settings`)
+      .then(res => {
+        if (res.data && res.data.provider) {
+          setSelectedProvider(res.data.provider)
+        }
+      })
+      .catch(err => console.error("Failed to load default provider", err))
   }, [])
 
   useEffect(() => {
@@ -392,9 +399,11 @@ const ChatWithDocument = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="caption" color="text.secondary">Model</Typography>
               <Select value={selectedProvider} onChange={(e) => setSelectedProvider(e.target.value)} size="small" sx={{ height: 32, fontSize: '0.85rem', bgcolor: 'white', borderRadius: 2, '& fieldset': { border: 'none' }, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                <MenuItem value="groq">Groq</MenuItem>
+                <MenuItem value="groq">GroqCloud</MenuItem>
                 <MenuItem value="openrouter">OpenRouter</MenuItem>
-                <MenuItem value="aws_bedrock">AWS Bedrock</MenuItem>
+                <MenuItem value="mistral">Mistral AI</MenuItem>
+                <MenuItem value="gemini">Google Gemini</MenuItem>
+                <MenuItem value="bedrock">AWS Bedrock</MenuItem>
               </Select>
             </Box>
           </Box>

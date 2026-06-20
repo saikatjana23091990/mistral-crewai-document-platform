@@ -28,7 +28,7 @@ const ConvertDocument = () => {
   const [currentStep, setCurrentStep] = useState(0)
   const [sourceFiles, setSourceFiles] = useState([])
   const [referenceFile, setReferenceFile] = useState(null)
-  const [provider, setProvider] = useState("groq")
+  const [provider, setProvider] = useState('groq')
   
   const [mappingData, setMappingData] = useState([])
   const [isProcessing, setIsProcessing] = useState(false)
@@ -44,6 +44,17 @@ const ConvertDocument = () => {
 
   const sourceInputRef = useRef(null)
   const referenceInputRef = useRef(null)
+
+  React.useEffect(() => {
+    // Fetch global settings to set the default provider
+    axios.get(`${API_BASE_URL}/settings`)
+      .then(res => {
+        if (res.data && res.data.provider) {
+          setProvider(res.data.provider)
+        }
+      })
+      .catch(err => console.error("Failed to load default provider", err))
+  }, [])
 
   const steps = [
     { id: 1, title: 'Upload Documents', desc: 'Add source files and reference template', icon: <CloudUploadIcon /> },
@@ -340,7 +351,7 @@ const ConvertDocument = () => {
                     label="LLM Provider"
                     onChange={(e) => setProvider(e.target.value)}
                   >
-                    <MenuItem value="groq">Groq</MenuItem>
+                    <MenuItem value="groq">GroqCloud</MenuItem>
                     <MenuItem value="openrouter">OpenRouter</MenuItem>
                   </Select>
                 </FormControl>

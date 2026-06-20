@@ -31,6 +31,7 @@ UPLOAD_DIR = Path("uploads")
 OUTPUT_DIR = Path("outputs")
 STATS_FILE = Path("stats.json")
 HISTORY_FILE = Path("history.json")
+SETTINGS_FILE = Path("settings.json")
 
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -47,6 +48,17 @@ DEFAULT_STATS = {
     "this_month_conversions": 0
 }
 DEFAULT_HISTORY = []
+DEFAULT_SETTINGS = {
+    "provider": "groq",
+    "model": "llama-4-maverick",
+    "temperature": 0.5,
+    "reasoningDepth": "fast",
+    "memoryEnabled": True,
+    "streamResponses": True,
+    "includeCitations": True,
+    "explainConflicts": True,
+    "showConfidenceScores": True
+}
 
 def load_stats():
     if STATS_FILE.exists():
@@ -69,8 +81,22 @@ def save_history(history):
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history, f)
 
+def load_settings_data():
+    if SETTINGS_FILE.exists():
+        try:
+            with open(SETTINGS_FILE, encoding="utf-8") as f:
+                return {**DEFAULT_SETTINGS, **json.load(f)}
+        except Exception:
+            return DEFAULT_SETTINGS.copy()
+    return DEFAULT_SETTINGS.copy()
+
+def save_settings_data(settings_data):
+    with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+        json.dump(settings_data, f)
+
 stats = load_stats()
 conversion_history = load_history()
+global_settings = load_settings_data()
 
 @app.middleware("http")
 async def count_api_calls(request: Request, call_next):
@@ -91,6 +117,21 @@ def get_stats():
 @app.get("/history")
 def get_history():
     return {"records": conversion_history}
+
+@app.get("/settings")
+def get_settings():
+    return global_settings
+
+@app.post("/settings")
+async def update_settings(request: Request):
+    try:
+        new_settings = await request.json()
+        global global_settings
+        global_settings = {**global_settings, **new_settings}
+        save_settings_data(global_settings)
+        return {"message": "Settings updated", "settings": global_settings}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 def get_target_format(reference_filename: str) -> str:
     """Determine target output format from reference file extension."""
@@ -552,9 +593,13 @@ async def convert_document(
     source_files: list[UploadFile] = File(...),
     reference_file: UploadFile = File(...),
     resolutions: str = Form(default=None),
-    provider: str = Form(default="groq")
+    provider: str = Form(default=None)
 ):
     start_time = time.perf_counter()
+
+    # Use global settings if not specified
+    if not provider:
+        provider = global_settings.get("provider", "groq")
 
     if not source_files:
         raise HTTPException(status_code=400, detail="At least one source file is required")
@@ -696,7 +741,7 @@ async def upload_chat_document(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
     try:
         text = parse_document(str(file_path))
-        provider = "mistral"  # default for uploads
+        provider = global_settings.get("provider", "groq").lower()
         qa = build_rag(text, source_name=file.filename, provider=provider)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -709,7 +754,12 @@ async def chat(payload: dict):
     raw_filenames = payload.get("filenames", []) or []
     question = payload.get("question", "")
     history = payload.get("history", []) or []
-    provider = payload.get("provider", "mistral").lower()
+    provider = payload.get("provider")
+    
+    if not provider:
+        provider = global_settings.get("provider", "groq").lower()
+    else:
+        provider = provider.lower()
 
     # Normalize: split any comma-joined filenames (from multi-source history records)
     filenames = []
