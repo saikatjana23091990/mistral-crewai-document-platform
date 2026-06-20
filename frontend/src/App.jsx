@@ -1,35 +1,37 @@
 import { useState } from 'react'
-import { Box } from '@mui/material'
-import Sidebar from './components/Sidebar'
-import Dashboard from './components/Dashboard'
+import { Box, Container } from '@mui/material'
+import Header from './components/Header'
 import ConvertDocument from './components/ConvertDocument'
 import ChatWithDocument from './components/ChatWithDocument'
-import History from './components/History'
+import StatsResults from './components/StatsResults'
 
 function App() {
   const [currentPage, setCurrentPage] = useState('convert')
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'dashboard':
-        return <Dashboard />
       case 'convert':
         return <ConvertDocument />
       case 'chat':
         return <ChatWithDocument />
-      case 'history':
-        return <History />
+      case 'stats_results':
+        return <StatsResults />
+      case 'settings':
+        // Placeholder for Settings
+        return <Box sx={{ p: 3 }}>Settings Page (Coming Soon)</Box>
       default:
         return <ConvertDocument />
     }
   }
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default' }}>
-      <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} />
-      <Box sx={{ flex: 1, overflowY: 'auto' }}>
-        {renderPage()}
-      </Box>
+    <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default', display: 'flex', flexDirection: 'column' }}>
+      <Container maxWidth={false} sx={{ maxWidth: 1600, pt: 2, pb: 4, display: 'flex', flexDirection: 'column', flex: 1 }}>
+        <Header currentPage={currentPage} setCurrentPage={setCurrentPage} />
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          {renderPage()}
+        </Box>
+      </Container>
     </Box>
   )
 }

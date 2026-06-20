@@ -1,424 +1,525 @@
 import React, { useRef, useState } from 'react'
 import {
-  Box,
-  Paper,
-  Typography,
-  Button,
-  Chip,
-  Divider,
-  Alert,
-  CircularProgress,
-  IconButton,
-  Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
-  TextField
+  Box, Paper, Typography, Button, Chip, CircularProgress, IconButton,
+  Grid, Table, TableHead, TableRow, TableCell, TableBody,
+  Select, MenuItem, FormControl, InputLabel,
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField, Menu
 } from '@mui/material'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import DownloadIcon from '@mui/icons-material/Download'
 import RefreshIcon from '@mui/icons-material/Refresh'
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
+import DescriptionIcon from '@mui/icons-material/Description'
+import CloseIcon from '@mui/icons-material/Close'
+import SettingsIcon from '@mui/icons-material/Settings'
+import EditIcon from '@mui/icons-material/Edit'
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
+import FilterListIcon from '@mui/icons-material/FilterList'
+import SearchIcon from '@mui/icons-material/Search'
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
+import MenuBookIcon from '@mui/icons-material/MenuBook'
 import axios from 'axios'
 
 const API_BASE_URL = 'http://localhost:8000'
 
 const ConvertDocument = () => {
+  const [currentStep, setCurrentStep] = useState(0)
   const [sourceFiles, setSourceFiles] = useState([])
   const [referenceFile, setReferenceFile] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [preview, setPreview] = useState('')
+  const [provider, setProvider] = useState("groq")
+  
+  const [mappingData, setMappingData] = useState([])
+  const [isProcessing, setIsProcessing] = useState(false)
   const [downloadUrl, setDownloadUrl] = useState('')
+
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingRowIndex, setEditingRowIndex] = useState(null)
+  const [editValue, setEditValue] = useState('')
+
+  const [filterStatus, setFilterStatus] = useState('All')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterAnchorEl, setFilterAnchorEl] = useState(null)
+
   const sourceInputRef = useRef(null)
   const referenceInputRef = useRef(null)
 
-  // Conflict resolution state
-  const [conflicts, setConflicts] = useState([])
-  const [resolutions, setResolutions] = useState({})
-  const [showConflictModal, setShowConflictModal] = useState(false)
-  const [isResolving, setIsResolving] = useState(false)
-
-  // Reset the entire conversion page
-  const handleReset = () => {
-    setSourceFiles([])
-    setReferenceFile(null)
-    setPreview('')
-    setDownloadUrl('')
-    setError('')
-    setSuccess('')
-    setLoading(false)
-    setConflicts([])
-    setResolutions({})
-    setShowConflictModal(false)
-    if (sourceInputRef.current) sourceInputRef.current.value = ''
-    if (referenceInputRef.current) referenceInputRef.current.value = ''
-  }
+  const steps = [
+    { id: 1, title: 'Upload Documents', desc: 'Add source files and reference template', icon: <CloudUploadIcon /> },
+    { id: 2, title: 'Map Review', desc: 'Review and confirm field mappings', icon: <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}><Box sx={{width:6,height:6,bgcolor:'currentColor',borderRadius:0.5}}/><Box sx={{width:6,height:6,bgcolor:'currentColor',borderRadius:0.5}}/><Box sx={{width:6,height:6,bgcolor:'currentColor',borderRadius:0.5}}/><Box sx={{width:6,height:6,bgcolor:'currentColor',borderRadius:0.5}}/></Box> },
+    { id: 3, title: 'Convert', desc: 'Process and generate output', icon: <CheckCircleOutlineIcon /> },
+    { id: 4, title: 'Download', desc: 'Download converted file and reports', icon: <DownloadIcon /> }
+  ]
 
   const handleFileUpload = (e, type) => {
     const files = Array.from(e.target.files)
     if (type === 'source') {
-      const newSources = files.map(file => ({
-        name: file.name,
-        size: file.size,
-        file
-      }))
+      const newSources = files.map(file => ({ name: file.name, size: file.size, file }))
       setSourceFiles(prev => [...prev, ...newSources])
     } else if (type === 'reference' && files.length > 0) {
       const file = files[0]
       setReferenceFile({ name: file.name, size: file.size, file })
     }
-    setError('')
-    setPreview('')
+    // reset file input value so same file can be uploaded again if needed
+    e.target.value = null
+  }
+
+  const removeSource = (index) => setSourceFiles(prev => prev.filter((_, i) => i !== index))
+
+  const handleReset = () => {
+    setCurrentStep(0)
+    setSourceFiles([])
+    setReferenceFile(null)
+    setMappingData([])
     setDownloadUrl('')
-    setSuccess('')
   }
 
-  const removeSource = (index) => {
-    setSourceFiles(prev => prev.filter((_, i) => i !== index))
-    setPreview('')
-    setDownloadUrl('')
-  }
-
-  const openPicker = (type) => {
-    const ref = type === 'source' ? sourceInputRef : referenceInputRef
-    if (ref.current) ref.current.value = ''
-    ref.current?.click?.()
-  }
-
-  const handleConvert = async (withResolutions = false, currentResolutions = {}) => {
-    if (sourceFiles.length === 0 || !referenceFile) {
-      setError('Please upload at least one source document and a reference document')
-      return
-    }
-
-    setLoading(true)
-    setError('')
-    setSuccess('')
-
+  const handlePreviewMapping = async () => {
+    if (sourceFiles.length === 0 || !referenceFile) return
+    setIsProcessing(true)
+    
     try {
       const formData = new FormData()
-      sourceFiles.forEach((sf) => {
-        formData.append('source_files', sf.file)
-      })
+      sourceFiles.forEach(sf => formData.append('source_files', sf.file))
       formData.append('reference_file', referenceFile.file)
 
-      if (withResolutions && Object.keys(currentResolutions).length > 0) {
-        formData.append('resolutions', JSON.stringify(currentResolutions))
-      }
+      const res = await axios.post(`${API_BASE_URL}/preview_mapping`, formData)
+      setMappingData(res.data.mappings || [])
+      setCurrentStep(1)
+    } catch (err) {
+      console.error("Preview mapping failed", err)
+      alert("Failed to preview mapping. See console.")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
 
-      const response = await axios.post(`${API_BASE_URL}/convert`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+  const handleConvert = async () => {
+    setCurrentStep(2)
+    setIsProcessing(true)
+    
+    try {
+      const formData = new FormData()
+      sourceFiles.forEach(sf => formData.append('source_files', sf.file))
+      formData.append('reference_file', referenceFile.file)
+      formData.append('provider', provider)
+
+      // Pass user resolutions based on manual mapping and ignore actions
+      const userResolutions = {}
+      mappingData.forEach(row => {
+        if (row.status === 'Mapped' && row.source.startsWith('Manual: ')) {
+          userResolutions[row.target] = row.source.replace('Manual: ', '')
+        } else if (row.status === 'Ignored') {
+          userResolutions[row.target] = '[Information not found in source documents]'
+        } else if (row.status === 'Mapped' && row.source.startsWith('Auto Mapped: ')) {
+          userResolutions[row.target] = row.source.replace('Auto Mapped: ', '')
         }
       })
-
-      const data = response.data
-      setPreview(data.preview || '')
-
-      if (data.conflicts && data.conflicts.length > 0 && !withResolutions) {
-        // First time with conflicts - show modal
-        setConflicts(data.conflicts)
-        setResolutions({})
-        setShowConflictModal(true)
-        setSuccess('Conflicts detected between sources. Please resolve them.')
-        setDownloadUrl('') // don't enable download until resolved
-      } else {
-        // No conflicts or after resolution
-        setDownloadUrl(data.download_url)
-        setSuccess(withResolutions ? 'Conflicts resolved. Final document ready!' : 'Document converted successfully!')
-        setShowConflictModal(false)
-        setConflicts([])
+      if (Object.keys(userResolutions).length > 0) {
+        formData.append('resolutions', JSON.stringify(userResolutions))
       }
+      
+      const res = await axios.post(`${API_BASE_URL}/convert`, formData)
+      if (res.data.download_url) {
+        setDownloadUrl(res.data.download_url)
+      }
+      setCurrentStep(3)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Error converting document')
+      console.error("Conversion failed", err)
+      alert("Failed to convert document. See console.")
+      setCurrentStep(1)
     } finally {
-      setLoading(false)
+      setIsProcessing(false)
     }
   }
 
-  const handleDownload = () => {
-    if (downloadUrl) {
-      window.open(`${API_BASE_URL}${downloadUrl}`, '_blank')
-    }
-  }
-
-  // Handle conflict resolution in modal
-  const updateResolution = (field, value) => {
-    setResolutions(prev => ({
-      ...prev,
-      [field]: value
+  const handleAutoMap = () => {
+    setMappingData(prev => prev.map(row => {
+      if (row.status === 'Missing' || row.status === 'Needs Review') {
+        return {
+          ...row,
+          source: 'Auto Mapped: Value',
+          doc: sourceFiles[0]?.name || '-',
+          conf: 75,
+          status: 'Mapped',
+          color: 'success.main'
+        }
+      }
+      return row
     }))
   }
 
-  const handleResolveConflicts = async () => {
-    if (Object.keys(resolutions).length === 0) {
-      setError('Please select or enter a value for at least one conflict')
-      return
-    }
-
-    setIsResolving(true)
-    // Re-call convert with resolutions (files are still in state)
-    await handleConvert(true, resolutions)
-    setIsResolving(false)
+  const handleOpenEdit = (index) => {
+    setEditingRowIndex(index)
+    const row = mappingData[index]
+    const currentVal = row.source.replace('Extracted: ', '').replace('Similar Field Found', '').replace('-- Unmapped --', '').replace('-- Ignored --', '').trim()
+    setEditValue(currentVal)
+    setEditDialogOpen(true)
   }
 
-  const closeConflictModal = () => {
-    setShowConflictModal(false)
-    // Keep the draft preview visible so user can see what was generated
-    setSuccess('Draft preview shown above. Conflicts were not resolved.')
+  const handleSaveEdit = () => {
+    setMappingData(prev => {
+      const newData = [...prev]
+      newData[editingRowIndex] = {
+        ...newData[editingRowIndex],
+        source: `Manual: ${editValue}`,
+        status: 'Mapped',
+        color: 'success.main',
+        conf: 100
+      }
+      return newData
+    })
+    setEditDialogOpen(false)
+  }
+
+  const handleIgnore = (index) => {
+    setMappingData(prev => {
+      const newData = [...prev]
+      newData[index] = {
+        ...newData[index],
+        status: 'Ignored',
+        color: 'text.disabled',
+        source: '-- Ignored --',
+        conf: null
+      }
+      return newData
+    })
+  }
+
+  const renderStepIcon = (step, index) => {
+    const isActive = currentStep === index
+    const isCompleted = currentStep > index
+    return (
+      <Box sx={{
+        width: 32, height: 32, borderRadius: '50%',
+        bgcolor: isActive || isCompleted ? 'primary.main' : 'background.paper',
+        color: isActive || isCompleted ? 'white' : 'text.disabled',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontWeight: 'bold', fontSize: '0.9rem',
+        boxShadow: isActive ? '0 0 0 4px rgba(124,58,237,0.1)' : 'none',
+        border: isActive || isCompleted ? 'none' : '1px solid #E5E7EB',
+        zIndex: 2, position: 'relative'
+      }}>
+        {isCompleted ? <CheckCircleIcon fontSize="small" sx={{ color: 'white' }} /> : step.id}
+      </Box>
+    )
+  }
+
+  const filteredMappingData = mappingData.filter(row => {
+    // Search match
+    const searchVal = searchQuery.toLowerCase()
+    const matchesSearch = row.target.toLowerCase().includes(searchVal) || 
+                          row.source.toLowerCase().includes(searchVal)
+    
+    // Status match
+    let matchesStatus = true
+    if (filterStatus !== 'All') {
+      if (filterStatus === 'Mapped' && row.status !== 'Mapped') matchesStatus = false
+      if (filterStatus === 'Missing' && row.status !== 'Missing') matchesStatus = false
+      if (filterStatus === 'Needs Review' && !row.status.includes('Review')) matchesStatus = false
+      if (filterStatus === 'Ignored' && row.status !== 'Ignored') matchesStatus = false
+    }
+
+    return matchesSearch && matchesStatus
+  })
+
+  const statsCount = {
+    mapped: mappingData.filter(m => m.status === 'Mapped').length,
+    review: mappingData.filter(m => m.status === 'Needs Review' || m.status === 'Mapped with Review').length,
+    missing: mappingData.filter(m => m.status === 'Missing').length
   }
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3.5 }, minHeight: '100vh' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {/* Top Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Box>
-          <Typography variant="h5" sx={{ mb: 0.5 }}>
-            Convert Document
-          </Typography>
-          <Typography variant="body2" sx={{ mb: 3 }}>
-            Upload source document(s) and a reference format. Supports multiple sources → single output.
-          </Typography>
+          <Typography variant="h4" sx={{ mb: 1, fontWeight: 700 }}>Convert Document</Typography>
+          <Typography variant="body2" color="text.secondary">Upload source document(s) and a reference format. We'll extract, map and convert the data to your target template.</Typography>
         </Box>
-        <Tooltip title="Reset page for new conversion">
-          <IconButton 
-            onClick={handleReset} 
-            color="default"
-            sx={{ 
-              border: '1px solid #ddd', 
-              borderRadius: 1,
-              '&:hover': { backgroundColor: '#f5f5f5' }
-            }}
-          >
-            <RefreshIcon />
-          </IconButton>
-        </Tooltip>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={handleReset} sx={{ bgcolor: 'background.paper', borderRadius: 2 }}>Reset</Button>
+          <Button variant="outlined" startIcon={<MenuBookIcon />} sx={{ bgcolor: 'background.paper', borderRadius: 2, color: 'primary.main' }}>Conversion Guide</Button>
+        </Box>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
-
-      <Box sx={{ display: 'flex', gap: 3, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
-        {/* Source Documents Section */}
-        <Paper elevation={2} sx={{ p: 3, flex: 1, minWidth: 300 }}>
-          <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <CloudUploadIcon /> Source Document(s)
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Upload one or more source files. Information will be merged into the reference format.
-          </Typography>
-
-          <input
-            type="file"
-            multiple
-            ref={sourceInputRef}
-            style={{ display: 'none' }}
-            onChange={(e) => handleFileUpload(e, 'source')}
-          />
-
-          <Button
-            variant="outlined"
-            startIcon={<CloudUploadIcon />}
-            onClick={() => openPicker('source')}
-            fullWidth
-            sx={{ mb: 2 }}
-          >
-            Add Source File(s)
-          </Button>
-
-          {sourceFiles.length > 0 && (
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected Sources ({sourceFiles.length}):</Typography>
-              {sourceFiles.map((sf, index) => (
-                <Chip
-                  key={index}
-                  label={`${sf.name} (${(sf.size / 1024).toFixed(1)} KB)`}
-                  onDelete={() => removeSource(index)}
-                  sx={{ mr: 1, mb: 1 }}
-                  color="primary"
-                  variant="outlined"
-                />
-              ))}
-            </Box>
-          )}
-        </Paper>
-
-        {/* Reference Document Section */}
-        <Paper elevation={2} sx={{ p: 3, flex: 1, minWidth: 300 }}>
-          <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <CloudUploadIcon /> Reference Document
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            The reference defines the target structure and format of the output.
-          </Typography>
-
-          <input
-            type="file"
-            ref={referenceInputRef}
-            style={{ display: 'none' }}
-            onChange={(e) => handleFileUpload(e, 'reference')}
-          />
-
-          <Button
-            variant="outlined"
-            startIcon={<CloudUploadIcon />}
-            onClick={() => openPicker('reference')}
-            fullWidth
-            sx={{ mb: 2 }}
-          >
-            Upload Reference File
-          </Button>
-
-          {referenceFile && (
-            <Chip
-              label={`${referenceFile.name} (${(referenceFile.size / 1024).toFixed(1)} KB)`}
-              color="secondary"
-              variant="outlined"
-              sx={{ mb: 2 }}
-            />
-          )}
-        </Paper>
-      </Box>
-
-      {/* Convert Button */}
-      <Box sx={{ mt: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
-        <Button
-          variant="contained"
-          onClick={() => handleConvert(false)}
-          disabled={loading || sourceFiles.length === 0 || !referenceFile}
-          size="large"
-        >
-          {loading ? <CircularProgress size={24} /> : 'Convert Document'}
-        </Button>
-
-        {downloadUrl && (
-          <Button
-            variant="outlined"
-            color="success"
-            startIcon={<DownloadIcon />}
-            onClick={handleDownload}
-            size="large"
-          >
-            Download Converted File
-          </Button>
-        )}
-      </Box>
-
-      {/* Results Section */}
-      {(preview || downloadUrl) && (
-        <Paper elevation={3} sx={{ mt: 4, p: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Conversion Result {conflicts.length > 0 && !downloadUrl ? '(Draft - Conflicts Pending)' : ''}
-          </Typography>
-          <Divider sx={{ mb: 2 }} />
-
-          {downloadUrl && (
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="body2" color="text.secondary">
-                Converted file ready for download. The format matches the reference document.
-              </Typography>
-            </Box>
-          )}
-
-          {preview && (
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>Preview:</Typography>
-              <Box
-                component="pre"
-                sx={{
-                  backgroundColor: '#f5f5f5',
-                  p: 2,
-                  borderRadius: 1,
-                  overflow: 'auto',
-                  fontSize: '0.85rem',
-                  whiteSpace: 'pre-wrap',
-                  maxHeight: 320
-                }}
-              >
-                {preview}
-              </Box>
-            </Box>
-          )}
-        </Paper>
-      )}
-
-      {/* Conflict Resolution Modal - Human in the Loop */}
-      <Dialog 
-        open={showConflictModal} 
-        onClose={closeConflictModal}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>Conflict Resolution (Human-in-the-Loop)</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2" sx={{ mb: 2 }}>
-            The following fields have different values across your source documents. 
-            Please choose the correct value for each (or enter a custom one). 
-            This will be used to generate the final document.
-          </Typography>
-
-          {conflicts.map((conflict, index) => {
-            const currentValue = resolutions[conflict.field] || ''
-            return (
-              <Box key={index} sx={{ mb: 3, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-                  {conflict.field}
+      {/* Main Layout Area */}
+      <Box sx={{ display: 'flex', gap: 3, flex: 1, alignItems: 'flex-start' }}>
+        {/* Left Stepper Rail */}
+        <Paper sx={{ width: 260, py: 4, px: 3, borderRadius: 2, display: 'flex', flexDirection: 'column', gap: 4, position: 'relative', overflow: 'visible' }}>
+          {/* Vertical Line connecting steps */}
+          <Box sx={{ position: 'absolute', left: 48, top: 40, bottom: 40, width: 2, bgcolor: '#F3F4F6', zIndex: 1 }} />
+          
+          {steps.map((step, index) => (
+            <Box key={step.id} sx={{ display: 'flex', gap: 2, zIndex: 2, ml: 1 }}>
+              {renderStepIcon(step, index)}
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: currentStep === index ? 700 : 600, color: currentStep === index ? 'primary.main' : 'text.primary', display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {step.title}
                 </Typography>
-
-                <RadioGroup
-                  value={currentValue}
-                  onChange={(e) => updateResolution(conflict.field, e.target.value)}
-                >
-                  {conflict.values.map((val, i) => (
-                    <FormControlLabel
-                      key={i}
-                      value={val.value}
-                      control={<Radio />}
-                      label={`${val.source}: ${val.value}`}
-                      sx={{ mb: 0.5 }}
-                    />
-                  ))}
-                </RadioGroup>
-
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Custom value (optional)"
-                  placeholder="Enter your resolved value"
-                  value={currentValue}
-                  onChange={(e) => updateResolution(conflict.field, e.target.value)}
-                  sx={{ mt: 1 }}
-                />
+                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5, lineHeight: 1.3 }}>{step.desc}</Typography>
               </Box>
-            )
-          })}
+            </Box>
+          ))}
+        </Paper>
+
+        {/* Right Content Area */}
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {currentStep === 0 && (
+            <Box>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 4, borderRadius: 2, height: '100%', border: '1px dashed #C4B5FD', bgcolor: 'rgba(124,58,237,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 2, cursor: 'pointer' }} onClick={() => sourceInputRef.current?.click()}>
+                    <Box sx={{ p: 2, borderRadius: '50%', bgcolor: 'white', color: 'primary.main', boxShadow: '0 4px 14px rgba(124,58,237,0.1)' }}>
+                      <CloudUploadIcon fontSize="large" />
+                    </Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Source Document(s)</Typography>
+                    <Typography variant="body2" color="text.secondary">Upload one or more source files. Information will be merged into the reference format.</Typography>
+                    <Button variant="contained" sx={{ mt: 2, borderRadius: 6, px: 4 }}>Browse Files</Button>
+                    <Typography variant="caption" color="text.disabled">Drag & drop files here</Typography>
+                    <input type="file" multiple ref={sourceInputRef} style={{ display: 'none' }} onChange={(e) => handleFileUpload(e, 'source')} />
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 4, borderRadius: 2, height: '100%', border: '1px dashed #C4B5FD', bgcolor: 'rgba(124,58,237,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 2, cursor: 'pointer' }} onClick={() => referenceInputRef.current?.click()}>
+                    <Box sx={{ p: 2, borderRadius: '50%', bgcolor: 'white', color: 'primary.main', boxShadow: '0 4px 14px rgba(124,58,237,0.1)' }}>
+                      <InsertDriveFileIcon fontSize="large" />
+                    </Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Reference Document (Target Template)</Typography>
+                    <Typography variant="body2" color="text.secondary">Upload the target template format for conversion.</Typography>
+                    <Button variant="contained" sx={{ mt: 2, borderRadius: 6, px: 4 }}>Browse Template</Button>
+                    <Typography variant="caption" color="text.disabled">Drag & drop template file here</Typography>
+                    <input type="file" ref={referenceInputRef} style={{ display: 'none' }} onChange={(e) => handleFileUpload(e, 'reference')} />
+                  </Paper>
+                </Grid>
+              </Grid>
+
+              {/* Selected Files Preview */}
+              <Box sx={{ mt: 4, display: 'flex', gap: 4 }}>
+                 <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>Selected Sources ({sourceFiles.length})</Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                      {sourceFiles.map((sf, idx) => (
+                        <Chip
+                          key={idx}
+                          icon={<DescriptionIcon sx={{ color: 'primary.main' }} />}
+                          label={<Box>
+                            <Typography variant="body2" component="span" sx={{ fontWeight: 600 }}>{sf.name}</Typography>
+                            <Typography variant="caption" component="span" sx={{ color: 'text.secondary', ml: 1 }}>{(sf.size / 1024).toFixed(1)} KB</Typography>
+                          </Box>}
+                          onDelete={() => removeSource(idx)}
+                          deleteIcon={<CloseIcon />}
+                          sx={{ p: 1, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid #E5E7EB', height: 'auto', py: 1.5 }}
+                        />
+                      ))}
+                    </Box>
+                 </Box>
+                 <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>Selected Template</Typography>
+                    {referenceFile && (
+                      <Chip
+                          icon={<InsertDriveFileIcon sx={{ color: 'success.main' }} />}
+                          label={<Box>
+                            <Typography variant="body2" component="span" sx={{ fontWeight: 600 }}>{referenceFile.name}</Typography>
+                            <Typography variant="caption" component="span" sx={{ color: 'text.secondary', ml: 1 }}>{(referenceFile.size / 1024).toFixed(1)} KB</Typography>
+                          </Box>}
+                          onDelete={() => setReferenceFile(null)}
+                          deleteIcon={<CloseIcon />}
+                          sx={{ p: 1, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid #E5E7EB', height: 'auto', py: 1.5 }}
+                        />
+                    )}
+                 </Box>
+              </Box>
+
+              <Box sx={{ mt: 4, display: 'flex', gap: 2, alignItems: 'center' }}>
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <InputLabel>LLM Provider</InputLabel>
+                  <Select
+                    value={provider}
+                    label="LLM Provider"
+                    onChange={(e) => setProvider(e.target.value)}
+                  >
+                    <MenuItem value="groq">Groq</MenuItem>
+                    <MenuItem value="openrouter">OpenRouter</MenuItem>
+                  </Select>
+                </FormControl>
+                <Button 
+                  variant="contained" 
+                  size="large" 
+                  onClick={handlePreviewMapping} 
+                  disabled={sourceFiles.length === 0 || !referenceFile || isProcessing}
+                  endIcon={isProcessing ? <CircularProgress size={20} color="inherit" /> : <Box component="span" sx={{ml:1}}>→</Box>} 
+                  sx={{ borderRadius: 2, px: 4, height: '40px' }}
+                >
+                  Review Mapping
+                </Button>
+              </Box>
+            </Box>
+          )}
+
+          {currentStep === 1 && (
+            <Paper sx={{ p: 4, borderRadius: 2, flex: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: 'primary.main', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>2</Box>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>Map Review & Confirmation</Typography>
+                  <Chip label="AI Mapping Suggestions" size="small" sx={{ bgcolor: 'rgba(124,58,237,0.1)', color: 'primary.main', fontWeight: 600 }} />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <Button variant="outlined" startIcon={<AutoFixHighIcon />} onClick={handleAutoMap} sx={{ borderRadius: 2 }}>Auto Map</Button>
+                  <Button variant="outlined" startIcon={<FilterListIcon />} onClick={(e) => setFilterAnchorEl(e.currentTarget)} sx={{ borderRadius: 2 }}>
+                    Filter {filterStatus !== 'All' ? `(${filterStatus})` : ''}
+                  </Button>
+                  <Menu
+                    anchorEl={filterAnchorEl}
+                    open={Boolean(filterAnchorEl)}
+                    onClose={() => setFilterAnchorEl(null)}
+                  >
+                    {['All', 'Mapped', 'Needs Review', 'Missing', 'Ignored'].map(status => (
+                      <MenuItem key={status} onClick={() => { setFilterStatus(status); setFilterAnchorEl(null); }}>
+                        {status}
+                      </MenuItem>
+                    ))}
+                  </Menu>
+                  <Box sx={{ position: 'relative' }}>
+                    <SearchIcon sx={{ position: 'absolute', left: 12, top: 10, color: 'text.secondary', fontSize: 20 }} />
+                    <input 
+                      type="text" 
+                      placeholder="Search fields..." 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      style={{ padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid #E5E7EB', outline: 'none' }} 
+                    />
+                  </Box>
+                </Box>
+              </Box>
+
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>Review the automatically mapped fields. You can edit mappings, ignore fields or mark as required.</Typography>
+
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>Target Field (Template)</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Source Field (Mapped From)</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Source Document</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Confidence</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>Action</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredMappingData.map((row, idx) => {
+                    const originalIdx = mappingData.indexOf(row);
+                    return (
+                    <TableRow key={originalIdx} sx={{ '& td': { py: 2, borderBottom: '1px solid #F3F4F6' } }}>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>{row.target}</Typography>
+                          {row.req && <Typography variant="caption" sx={{ color: 'primary.main', bgcolor: 'rgba(124,58,237,0.1)', px: 1, borderRadius: 1 }}>Required</Typography>}
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ color: row.conf ? 'text.primary' : 'error.main', fontStyle: row.conf ? 'normal' : 'italic' }}>{row.source}</Typography>
+                      </TableCell>
+                      <TableCell><Typography variant="body2" color="text.secondary">{row.doc}</Typography></TableCell>
+                      <TableCell>
+                        {row.conf ? <Typography variant="body2" sx={{ color: row.conf >= 80 ? 'success.main' : 'warning.main', fontWeight: 600 }}>{row.conf}%</Typography> : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {row.status === 'Mapped' && <CheckCircleOutlineIcon sx={{ color: row.color, fontSize: 18 }} />}
+                          {row.status === 'Missing' && <CloseIcon sx={{ color: row.color, fontSize: 18 }} />}
+                          {row.status.includes('Review') && <Box sx={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${row.color}` }} />}
+                          {row.status === 'Ignored' && <VisibilityOffIcon sx={{ color: row.color, fontSize: 18 }} />}
+                          <Typography variant="body2" sx={{ color: row.color, fontWeight: 500 }}>{row.status}</Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                          {row.status !== 'Missing' && row.status !== 'Ignored' ? (
+                            <>
+                              <IconButton size="small" onClick={() => handleOpenEdit(originalIdx)} sx={{ bgcolor: 'rgba(124,58,237,0.05)' }}><EditIcon fontSize="small" sx={{ color: 'primary.main' }} /></IconButton>
+                              <IconButton size="small" onClick={() => handleIgnore(originalIdx)} sx={{ bgcolor: 'rgba(0,0,0,0.03)' }}><VisibilityOffIcon fontSize="small" sx={{ color: 'text.secondary' }} /></IconButton>
+                            </>
+                          ) : row.status === 'Ignored' ? (
+                            <IconButton size="small" onClick={() => handleOpenEdit(originalIdx)} sx={{ bgcolor: 'rgba(124,58,237,0.05)' }}><EditIcon fontSize="small" sx={{ color: 'primary.main' }} /></IconButton>
+                          ) : (
+                            <Button size="small" variant="outlined" onClick={() => handleOpenEdit(originalIdx)} sx={{ py: 0.5 }}>Map</Button>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  )})}
+                </TableBody>
+              </Table>
+              
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 4 }}>
+                <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main' }} /> <Typography variant="caption">High (>=80%)</Typography></Box>
+                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} /> <Typography variant="caption">Medium (50-79%)</Typography></Box>
+                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main' }} /> <Typography variant="caption">Low (&lt;50%)</Typography></Box>
+                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'text.disabled' }} /> <Typography variant="caption">Unmapped</Typography></Box>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                  <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 600 }}>Mapped: {statsCount.mapped}</Typography>
+                  <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600 }}>Needs Review: {statsCount.review}</Typography>
+                  <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 600 }}>Missing: {statsCount.missing}</Typography>
+                  <Button variant="contained" sx={{ ml: 2, borderRadius: 2 }} onClick={handleConvert}>Save Mapping & Convert</Button>
+                </Box>
+              </Box>
+            </Paper>
+          )}
+
+          {currentStep === 2 && (
+            <Paper sx={{ p: 4, borderRadius: 2, flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+               <Typography variant="h5" sx={{ mb: 2 }}>Conversion in Progress</Typography>
+               <CircularProgress size={48} sx={{ mb: 4 }} />
+               <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>Extracting entities and merging data into target template...</Typography>
+            </Paper>
+          )}
+
+          {currentStep === 3 && (
+            <Paper sx={{ p: 4, borderRadius: 2, flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+               <Box sx={{ width: 80, height: 80, borderRadius: '50%', bgcolor: 'rgba(76, 175, 80, 0.1)', color: 'success.main', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3 }}>
+                 <CheckCircleIcon sx={{ fontSize: 40 }} />
+               </Box>
+               <Typography variant="h5" sx={{ mb: 1, fontWeight: 700 }}>Conversion Successful!</Typography>
+               <Typography variant="body2" color="text.secondary" sx={{ mb: 4, maxWidth: 400 }}>Your document has been successfully merged and converted into the target template format. You can now download the file.</Typography>
+               <Box sx={{ display: 'flex', gap: 2 }}>
+                 <Button variant="contained" startIcon={<DownloadIcon />} onClick={() => window.open(`${API_BASE_URL}${downloadUrl}`, '_blank')} sx={{ borderRadius: 2, px: 4 }}>
+                   Download File
+                 </Button>
+                 <Button variant="outlined" onClick={handleReset} sx={{ borderRadius: 2 }}>Convert Another</Button>
+               </Box>
+            </Paper>
+          )}
+
+        </Box>
+      </Box>
+
+      {/* Edit Mapping Dialog */}
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Field Mapping</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Provide the manual value for the target field: <b>{editingRowIndex !== null ? mappingData[editingRowIndex].target : ''}</b>
+          </Typography>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Mapped Value"
+            fullWidth
+            variant="outlined"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+          />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={closeConflictModal} disabled={isResolving}>
-            Cancel (keep draft)
-          </Button>
-          <Button 
-            onClick={handleResolveConflicts} 
-            variant="contained" 
-            disabled={isResolving || Object.keys(resolutions).length === 0}
-          >
-            {isResolving ? <CircularProgress size={20} /> : 'Resolve & Generate Final Document'}
-          </Button>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setEditDialogOpen(false)} color="inherit">Cancel</Button>
+          <Button onClick={handleSaveEdit} variant="contained" sx={{ borderRadius: 2 }}>Save Mapping</Button>
         </DialogActions>
       </Dialog>
-
-      {/* Instructions */}
-      <Paper sx={{ mt: 3, p: 2, backgroundColor: '#f9f9f9' }}>
-        <Typography variant="body2" color="text.secondary">
-          <strong>Multi-source + Conflict support:</strong> Upload multiple sources. 
-          Conflicting values (e.g. different totals, vendors, dates) will trigger this resolution modal. 
-          Missing data from the reference will be labeled "[Information not found in source documents]".
-        </Typography>
-      </Paper>
     </Box>
   )
 }

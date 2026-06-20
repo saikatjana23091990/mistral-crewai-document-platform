@@ -280,6 +280,27 @@ class AgenticMemoryRAG:
                 except Exception as e:
                     return self._generate_curated_fallback_answer(user_content)
 
+        if provider == "openrouter":
+            openrouter_key = os.getenv("OPENROUTER_API_KEY")
+            if openrouter_key:
+                try:
+                    import openai
+                    client = openai.OpenAI(
+                        api_key=openrouter_key,
+                        base_url="https://openrouter.ai/api/v1"
+                    )
+                    messages = [{"role": "system", "content": system_content}]
+                    messages.extend([{"role": h.get("role"), "content": h.get("content")} for h in history])
+                    messages.append({"role": "user", "content": user_content})
+                    
+                    response = client.chat.completions.create(
+                        model="meta-llama/llama-3.1-8b-instruct:free",
+                        messages=messages
+                    )
+                    return response.choices[0].message.content
+                except Exception as e:
+                    return self._generate_curated_fallback_answer(user_content)
+
         if provider == "bedrock":
             try:
                 if not self.bedrock_provider or not self.bedrock_provider.configured():
@@ -396,6 +417,9 @@ def _build_agentic_rag(docs, provider="mistral"):
     elif provider == "bedrock":
         llm_client = "bedrock"
         model = BEDROCK_MODEL_ID
+    elif provider == "openrouter":
+        llm_client = "openrouter"
+        model = "meta-llama/llama-3.1-8b-instruct:free"
 
     return AgenticMemoryRAG(retriever, llm_client, provider, model)
 

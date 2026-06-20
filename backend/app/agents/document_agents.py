@@ -7,18 +7,18 @@ from typing import Any
 
 load_dotenv()
 
-class GroqBaseLLM(BaseLLM):
-    """CrewAI-compatible Groq LLM implementation using OpenAI client."""
+class OpenAICompatibleLLM(BaseLLM):
+    """CrewAI-compatible LLM implementation using OpenAI client."""
     model: str
     api_key: str
-    provider: str = "groq"
+    base_url: str
 
     def __init__(self, **data: Any):
         super().__init__(**data)
         import openai
         self.client = openai.OpenAI(
             api_key=self.api_key,
-            base_url="https://api.groq.com/openai/v1"
+            base_url=self.base_url
         )
 
     def _prepare_messages(self, messages: str | list[dict[str, str]]) -> list[dict[str, str]]:
@@ -70,40 +70,51 @@ class GroqBaseLLM(BaseLLM):
             response_model=response_model,
         )
 
-llm = GroqBaseLLM(
-    model="llama-3.3-70b-versatile",
-    api_key=os.getenv("GROQ_API_KEY", "your-groq-key-here")
-)
 
-# Create agents with Mistral model
-extractor_agent = Agent(
-    role="Document Extraction Expert",
-    goal="Extract all information without omission",
-    backstory="Expert enterprise document parser",
-    verbose=True,
-    llm=llm
-)
+def get_agents(provider="groq"):
+    if provider == "openrouter":
+        llm = OpenAICompatibleLLM(
+            model="meta-llama/llama-3.1-8b-instruct:free",
+            api_key=os.getenv("OPENROUTER_API_KEY", "your_openrouter_api_key"),
+            base_url="https://openrouter.ai/api/v1"
+        )
+    else:
+        llm = OpenAICompatibleLLM(
+            model="llama-3.3-70b-versatile",
+            api_key=os.getenv("GROQ_API_KEY", "your-groq-key-here"),
+            base_url="https://api.groq.com/openai/v1"
+        )
 
-normalizer_agent = Agent(
-    role="Data Normalizer",
-    goal="Map varying source formats into canonical fields consistently",
-    backstory="Expert at parsing extracted data and normalizing fields across different templates",
-    verbose=True,
-    llm=llm
-)
+    extractor_agent = Agent(
+        role="Document Extraction Expert",
+        goal="Extract all information without omission",
+        backstory="Expert enterprise document parser",
+        verbose=True,
+        llm=llm
+    )
 
-formatter_agent = Agent(
-    role="Document Formatter",
-    goal="Transform source data into target structure",
-    backstory="Expert in formatting and structured conversion",
-    verbose=True,
-    llm=llm
-)
+    normalizer_agent = Agent(
+        role="Data Normalizer",
+        goal="Map varying source formats into canonical fields consistently",
+        backstory="Expert at parsing extracted data and normalizing fields across different templates",
+        verbose=True,
+        llm=llm
+    )
 
-validator_agent = Agent(
-    role="Validation Auditor",
-    goal="Detect hallucinations and missing data",
-    backstory="Expert AI quality auditor",
-    verbose=True,
-    llm=llm
-)
+    formatter_agent = Agent(
+        role="Document Formatter",
+        goal="Transform source data into target structure",
+        backstory="Expert in formatting and structured conversion",
+        verbose=True,
+        llm=llm
+    )
+
+    validator_agent = Agent(
+        role="Validation Auditor",
+        goal="Detect hallucinations and missing data",
+        backstory="Expert AI quality auditor",
+        verbose=True,
+        llm=llm
+    )
+    
+    return extractor_agent, normalizer_agent, formatter_agent, validator_agent

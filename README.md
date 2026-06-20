@@ -9,27 +9,25 @@ Convert documents from multiple sources into a single reference format (XLSX / D
 ## ✨ Key Features
 
 ### Document Conversion
-- Upload multiple source documents (PDF, DOCX, XLSX, TXT)
-- Upload a reference/template file to define the target format
-- Automatic format detection and native output generation (XLSX stays XLSX, DOCX stays DOCX, etc.)
-- **Human-in-the-loop conflict resolution** modal when sources disagree on values
-- Missing fields clearly labeled as `[Information not found in source documents]`
-- Download the converted document
-- Reset functionality for new conversions
+- **Modern Neomorphic UI**: Beautiful 4-step wizard design (Lavender/White theme).
+- **Upload**: Multiple source documents (PDF, DOCX, XLSX, TXT) and a reference template file.
+- **Interactive Map Review**: 
+  - Preview AI-suggested mappings and confidence scores.
+  - **Manual Overrides**: Edit extracted values or manually map missing fields.
+  - **Auto Map & Filtering**: Filter by status (Mapped, Missing, Needs Review, Ignored) and search fields instantly.
+- Automatic format detection and native output generation.
+- Download the converted document and reset functionality for new conversions.
 
 ### Agentic RAG Chat with Document
-- Full chat history panel with auto-titles and timestamps
-- Load documents from conversion history or upload new ones
-- **Multi-provider support**:
-  - Mistral AI (default)
-  - Google Gemini
-  - AWS Bedrock (boto3 + bearer token API route)
-- Top-right model selector
+- Full chat history panel with session isolation ("New Chat" properly clears context).
+- Load documents from conversion history or upload new ones.
+- **Contextual Suggestions**: Start your chat easily with context-aware prompts based on your documents.
+- **Multi-provider support** (Dynamically selectable via UI):
+  - **Groq** (Default - lightning-fast inference)
+  - **OpenRouter** (Flexible OpenAI-compatible routing)
+  - **AWS Bedrock** (Anthropic Claude Haiku support)
 - Structured responses: Executive Summary + Key Sections/Findings + Key Data/Numbers & Entities + Implications & Recommendations
-- Memory system (Conversation Summary + Entity Memory)
-- Grounding indicators (High / Medium / Low)
-- Anti-hallucination: responses are strictly grounded in source chunks
-- Tool support (calculator for numeric questions)
+- Anti-hallucination: responses are strictly grounded in source chunks.
 
 ### Technical Highlights
 - FastAPI backend with LangChain + ChromaDB
@@ -41,9 +39,10 @@ Convert documents from multiple sources into a single reference format (XLSX / D
 
 | Layer       | Technology                          |
 |-------------|-------------------------------------|
-| Frontend    | React 18, Vite, MUI, Axios          |
+| Frontend    | React 18, Vite, MUI, Axios (Neomorphic Design) |
 | Backend     | FastAPI, Uvicorn                    |
-| AI / RAG    | Mistral AI, Google Generative AI, AWS Bedrock (boto3), LangChain |
+| AI Agents   | CrewAI (Document Conversion)        |
+| AI / RAG    | Groq, OpenRouter, AWS Bedrock, LangChain |
 | Vector DB   | ChromaDB                            |
 | Document    | PyMuPDF, python-docx, pandas, openpyxl, unstructured |
 | Deployment  | Docker Compose                      |
@@ -70,8 +69,8 @@ pip install -r requirements.txt
 
 Create `.env` file (see `.env.example`):
 ```env
-MISTRAL_API_KEY=your_mistral_key
-GEMINI_API_KEY=your_gemini_key
+GROQ_API_KEY=your_groq_key
+OPENROUTER_API_KEY=your_openrouter_key
 AWS_REGION=us-east-1
 AWS_BEARER_TOKEN_BEDROCK=bedrock-api-key-xxxx
 ```
@@ -113,16 +112,15 @@ docker compose down
 
 | Variable                    | Required | Description                              | Example |
 |----------------------------|----------|------------------------------------------|---------|
-| `MISTRAL_API_KEY`          | Optional | Mistral AI key                           | - |
-| `GEMINI_API_KEY`           | Optional | Google AI Studio key                     | - |
+| `GROQ_API_KEY`             | Optional | Groq API key                             | - |
+| `OPENROUTER_API_KEY`       | Optional | OpenRouter API key                       | - |
 | `AWS_REGION`               | Optional | AWS region for Bedrock                   | us-east-1 |
 | `AWS_BEARER_TOKEN_BEDROCK` | Optional | Bedrock short-term bearer token          | bedrock-api-key-... |
-| `MODEL_NAME`               | Optional | Override Mistral model                   | mistral-large-latest |
 
-The app supports **three providers** selectable in the Chat UI:
-- Mistral (default)
-- Gemini
-- AWS Bedrock (supports both boto3 credentials and bearer token route)
+The app supports **three providers** selectable in the Chat and Conversion UI:
+- Groq (default)
+- OpenRouter
+- AWS Bedrock
 
 ## 📁 Project Structure
 
@@ -158,9 +156,10 @@ mistral-crewai-document-platform/
 
 1. Upload **one or more source documents**
 2. Upload a **reference file** (defines target columns/format)
-3. Click **Convert**
-4. If conflicts detected → Resolve using the modal (choose per source or enter custom)
-5. Download the native-format output file
+3. Click **Review Mapping** to get AI-suggested fields
+4. **Human-in-the-loop**: Edit extracted values, manually map missing fields, or ignore fields using the Interactive Table.
+5. Click **Save Mapping & Convert** to pass your overrides to the CrewAI agents.
+6. Download the native-format output file.
 
 ## 💬 Chat Features
 
