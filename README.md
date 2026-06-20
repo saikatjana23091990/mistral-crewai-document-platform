@@ -4,21 +4,35 @@ AI-powered **multi-source document conversion** + **agentic RAG conversational c
 
 Convert documents from multiple sources into a single reference format (XLSX / DOCX / PDF) with conflict resolution, then explore the converted data using an intelligent chat interface powered by Mistral, Google Gemini, or AWS Bedrock.
 
-![Platform Overview](https://via.placeholder.com/800x400?text=Document+Platform+Screenshot)
+![Platform Dashboard & Stats](Application%20Previews/results%20and%20stats%20page.png)
 
 ## ✨ Key Features
 
 ### Document Conversion
+
+![Convert Document Wizard](Application%20Previews/Convert%20Document%20Interface.png)
+
 - **Modern Neomorphic UI**: Beautiful 4-step wizard design (Lavender/White theme).
 - **Upload**: Multiple source documents (PDF, DOCX, XLSX, TXT) and a reference template file.
 - **Interactive Map Review**: 
   - Preview AI-suggested mappings and confidence scores.
   - **Manual Overrides**: Edit extracted values or manually map missing fields.
   - **Auto Map & Filtering**: Filter by status (Mapped, Missing, Needs Review, Ignored) and search fields instantly.
-- Automatic format detection and native output generation.
-- Download the converted document and reset functionality for new conversions.
+
+![AI Mapping Suggestions](Application%20Previews/Convert%20document%20mapping.png)
+
+- **Conflict Resolution**: Human-in-the-loop verification automatically flags differing values extracted from multiple source documents.
+
+![Conflict Resolution](Application%20Previews/Convert%20document%20mapping%20conflict%20resultion.png)
+
+- **Native Output Generation**: Download the fully populated converted document instantly.
+
+![Conversion Results](Application%20Previews/Convert%20document%20results.png)
 
 ### Agentic RAG Chat with Document
+
+![Intelligent Chat](Application%20Previews/Chat%20with%20document%20interface.png)
+
 - Full chat history panel with session isolation ("New Chat" properly clears context).
 - Load documents from conversion history or upload new ones.
 - **Contextual Suggestions**: Start your chat easily with context-aware prompts based on your documents.
@@ -28,6 +42,13 @@ Convert documents from multiple sources into a single reference format (XLSX / D
   - **AWS Bedrock** (Anthropic Claude Haiku support)
 - Structured responses: Executive Summary + Key Sections/Findings + Key Data/Numbers & Entities + Implications & Recommendations
 - Anti-hallucination: responses are strictly grounded in source chunks.
+
+### Global Settings & Admin
+
+![Settings Page](Application%20Previews/Settings%20and%20stat%20page.png)
+
+- **Centralized Configuration**: Globally control the active LLM provider and parameters (temperature, model type, streaming).
+- **Usage Stats**: Live dashboard metric cards for platform monitoring.
 
 ### Technical Highlights
 - FastAPI backend with LangChain + ChromaDB

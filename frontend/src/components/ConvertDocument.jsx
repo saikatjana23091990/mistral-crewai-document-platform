@@ -164,7 +164,7 @@ const ConvertDocument = () => {
   const handleOpenEdit = (index) => {
     setEditingRowIndex(index)
     const row = mappingData[index]
-    const currentVal = row.source.replace('Extracted: ', '').replace('Similar Field Found', '').replace('-- Unmapped --', '').replace('-- Ignored --', '').trim()
+    const currentVal = row.source.startsWith('Extracted: ') ? row.source.replace('Extracted: ', '') : row.source.replace('Manual: ', '').replace('Similar Field Found', '').replace('-- Unmapped --', '').replace('-- Ignored --', '').replace('Conflict Detected', '').trim()
     setEditValue(currentVal)
     setEditDialogOpen(true)
   }
@@ -177,7 +177,8 @@ const ConvertDocument = () => {
         source: `Manual: ${editValue}`,
         status: 'Mapped',
         color: 'success.main',
-        conf: 100
+        conf: 100,
+        conflicting_options: [] // Clear conflicts once resolved
       }
       return newData
     })
@@ -443,14 +444,18 @@ const ConvertDocument = () => {
                           {row.status === 'Missing' && <CloseIcon sx={{ color: row.color, fontSize: 18 }} />}
                           {row.status.includes('Review') && <Box sx={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${row.color}` }} />}
                           {row.status === 'Ignored' && <VisibilityOffIcon sx={{ color: row.color, fontSize: 18 }} />}
-                          <Typography variant="body2" sx={{ color: row.color, fontWeight: 500 }}>{row.status}</Typography>
+                          <Typography variant="body2" sx={{ color: row.color, fontWeight: 500 }}>
+                            {row.status} {row.conflicting_options?.length > 0 && "(Conflict)"}
+                          </Typography>
                         </Box>
                       </TableCell>
                       <TableCell align="right">
                         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
                           {row.status !== 'Missing' && row.status !== 'Ignored' ? (
                             <>
-                              <IconButton size="small" onClick={() => handleOpenEdit(originalIdx)} sx={{ bgcolor: 'rgba(124,58,237,0.05)' }}><EditIcon fontSize="small" sx={{ color: 'primary.main' }} /></IconButton>
+                              <Button size="small" variant={row.conflicting_options?.length > 0 ? "contained" : "outlined"} onClick={() => handleOpenEdit(originalIdx)} sx={{ py: 0.5, px: 2, borderRadius: 2 }}>
+                                {row.conflicting_options?.length > 0 ? "Resolve" : "Edit"}
+                              </Button>
                               <IconButton size="small" onClick={() => handleIgnore(originalIdx)} sx={{ bgcolor: 'rgba(0,0,0,0.03)' }}><VisibilityOffIcon fontSize="small" sx={{ color: 'text.secondary' }} /></IconButton>
                             </>
                           ) : row.status === 'Ignored' ? (
@@ -514,12 +519,39 @@ const ConvertDocument = () => {
         <DialogTitle>Edit Field Mapping</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Provide the manual value for the target field: <b>{editingRowIndex !== null ? mappingData[editingRowIndex].target : ''}</b>
+            Provide or select the manual value for the target field: <b>{editingRowIndex !== null ? mappingData[editingRowIndex].target : ''}</b>
           </Typography>
+
+          {editingRowIndex !== null && mappingData[editingRowIndex].conflicting_options && mappingData[editingRowIndex].conflicting_options.length > 0 && (
+            <Box sx={{ mb: 3, p: 2, bgcolor: 'rgba(245, 158, 11, 0.1)', borderRadius: 2, border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+              <Typography variant="subtitle2" sx={{ color: 'warning.dark', mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <AutoFixHighIcon fontSize="small" /> Conflict Detected in Source Documents
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                We found different values for this field across your uploaded documents. Please select the correct one:
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {mappingData[editingRowIndex].conflicting_options.map((opt, i) => (
+                  <Paper 
+                    key={i}
+                    variant="outlined" 
+                    sx={{ p: 1.5, cursor: 'pointer', borderColor: editValue === opt.value ? 'primary.main' : 'divider', bgcolor: editValue === opt.value ? 'rgba(124,58,237,0.05)' : 'transparent' }}
+                    onClick={() => setEditValue(opt.value)}
+                  >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <Typography variant="body2" sx={{ fontWeight: editValue === opt.value ? 600 : 400 }}>{opt.value}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ bgcolor: 'rgba(0,0,0,0.05)', px: 1, borderRadius: 1 }}>From: {opt.doc}</Typography>
+                    </Box>
+                  </Paper>
+                ))}
+              </Box>
+            </Box>
+          )}
+
           <TextField
             autoFocus
             margin="dense"
-            label="Mapped Value"
+            label={editingRowIndex !== null && mappingData[editingRowIndex].conflicting_options?.length > 0 ? "Or Enter Custom Value" : "Mapped Value"}
             fullWidth
             variant="outlined"
             value={editValue}

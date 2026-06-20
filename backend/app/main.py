@@ -552,22 +552,37 @@ async def preview_mapping(
     for idx, col in enumerate(reference_columns):
         req = col.lower() in ["customer name", "customer id", "email", "contract start date", "quarter", "region"]
         
+        found_vals = []
+        for sf in source_data_list:
+            extracted = _extract_data_for_columns(sf["text"], [col])
+            val = extracted.get(col, "")
+            if val:
+                found_vals.append({"doc": sf["name"], "val": val})
+
         source_field = "-- Unmapped --"
         doc = "-"
         conf = None
         status = "Missing"
         color = "error.main"
+        conflicting_options = []
         
-        for sf in source_data_list:
-            extracted = _extract_data_for_columns(sf["text"], [col])
-            val = extracted.get(col, "")
-            if val:
-                source_field = f"Extracted: {val[:20]}"
-                doc = sf["name"]
-                conf = 85 + (len(val) % 15)
+        if len(found_vals) > 0:
+            # Check unique values
+            unique_vals = list({fv["val"] for fv in found_vals})
+            if len(unique_vals) > 1:
+                # Conflict!
+                source_field = "Conflict Detected"
+                doc = "Multiple"
+                conf = 50
+                status = "Needs Review"
+                color = "warning.main"
+                conflicting_options = [{"doc": fv["doc"], "value": fv["val"]} for fv in found_vals]
+            else:
+                source_field = f"Extracted: {unique_vals[0][:20]}"
+                doc = found_vals[0]["doc"]
+                conf = 85 + (len(unique_vals[0]) % 15)
                 status = "Mapped"
                 color = "success.main"
-                break
         
         if status == "Missing" and idx % 3 == 0:
             source_field = "Similar Field Found"
@@ -583,7 +598,8 @@ async def preview_mapping(
             "doc": doc,
             "conf": conf,
             "status": status,
-            "color": color
+            "color": color,
+            "conflicting_options": conflicting_options
         })
 
     return {"mappings": mappings}
