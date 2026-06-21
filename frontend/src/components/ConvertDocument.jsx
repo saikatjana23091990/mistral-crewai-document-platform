@@ -532,6 +532,52 @@ const ConvertDocument = () => {
             Provide or select the manual value for the target field: <b>{editingRowIndex !== null ? mappingData[editingRowIndex].target : ''}</b>
           </Typography>
 
+          {/* Contextual guidance based on mapping status */}
+          {editingRowIndex !== null && (() => {
+            const row = mappingData[editingRowIndex]
+            const hasConflicts = row.conflicting_options?.length > 0
+
+            if (hasConflicts) return null  // Conflict UI is shown separately below
+
+            if (row.status === 'Mapped' && row.extractedValue) {
+              return (
+                <Box sx={{ mb: 2, p: 2, bgcolor: 'rgba(76, 175, 80, 0.08)', borderRadius: 2, border: '1px solid rgba(76, 175, 80, 0.25)' }}>
+                  <Typography variant="subtitle2" sx={{ color: 'success.dark', mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CheckCircleOutlineIcon fontSize="small" /> Mapped with {row.conf}% confidence
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Value "<b>{row.extractedValue}</b>" was extracted from <b>{row.doc}</b>. You can confirm or edit below.
+                  </Typography>
+                </Box>
+              )
+            }
+
+            if (row.status === 'Needs Review') {
+              return (
+                <Box sx={{ mb: 2, p: 2, bgcolor: 'rgba(245, 158, 11, 0.08)', borderRadius: 2, border: '1px solid rgba(245, 158, 11, 0.25)' }}>
+                  <Typography variant="subtitle2" sx={{ color: 'warning.dark', mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <AutoFixHighIcon fontSize="small" /> Possible match found ({row.conf}% confidence)
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    A similar field was detected in <b>{row.doc}</b>, but the system couldn't extract an exact value. Please review the source document and enter the correct value below.
+                  </Typography>
+                </Box>
+              )
+            }
+
+            if (row.status === 'Missing') {
+              return (
+                <Box sx={{ mb: 2, p: 2, bgcolor: 'rgba(0, 0, 0, 0.03)', borderRadius: 2, border: '1px solid rgba(0, 0, 0, 0.08)' }}>
+                  <Typography variant="caption" color="text.secondary">
+                    No matching value was found in the source documents. Please enter the value manually if available.
+                  </Typography>
+                </Box>
+              )
+            }
+
+            return null
+          })()}
+
           {editingRowIndex !== null && mappingData[editingRowIndex].conflicting_options && mappingData[editingRowIndex].conflicting_options.length > 0 && (
             <Box sx={{ mb: 3, p: 2, bgcolor: 'rgba(245, 158, 11, 0.1)', borderRadius: 2, border: '1px solid rgba(245, 158, 11, 0.3)' }}>
               <Typography variant="subtitle2" sx={{ color: 'warning.dark', mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -561,7 +607,13 @@ const ConvertDocument = () => {
           <TextField
             autoFocus
             margin="dense"
-            label={editingRowIndex !== null && mappingData[editingRowIndex].conflicting_options?.length > 0 ? "Or Enter Custom Value" : "Mapped Value"}
+            label={
+              editingRowIndex !== null && mappingData[editingRowIndex].conflicting_options?.length > 0
+                ? "Or Enter Custom Value"
+                : editingRowIndex !== null && mappingData[editingRowIndex].extractedValue
+                  ? "Confirm or Edit Value"
+                  : "Enter Value"
+            }
             fullWidth
             variant="outlined"
             value={editValue}
