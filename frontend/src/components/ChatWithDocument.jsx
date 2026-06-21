@@ -3,8 +3,9 @@ import {
   Box, Paper, Typography, TextField, Button, Chip, List, ListItem, ListItemButton,
   ListItemText, Alert, CircularProgress, Checkbox, FormControlLabel, Stack,
   Accordion, AccordionSummary, AccordionDetails, IconButton, Select, MenuItem,
-  FormControl, InputAdornment, Grid
+  FormControl, InputAdornment, Grid, useTheme, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material'
+import { alpha } from '@mui/material/styles'
 import SendIcon from '@mui/icons-material/Send'
 import AddIcon from '@mui/icons-material/Add'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
@@ -27,10 +28,12 @@ import axios from 'axios'
 const API_BASE_URL = 'http://localhost:8000'
 
 const ChatWithDocument = () => {
+  const theme = useTheme();
   const [question, setQuestion] = useState('')
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState("groq")
+  const [guideOpen, setGuideOpen] = useState(false)
 
   // Session state for history
   const [sessions, setSessions] = useState(() => {
@@ -254,7 +257,7 @@ const ChatWithDocument = () => {
             <Typography variant="body2" color="text.secondary">Select from converted documents, upload new ones, and have an agentic conversation with memory.</Typography>
           </Box>
         </Box>
-        <Button variant="outlined" startIcon={<MenuBookIcon />} sx={{ bgcolor: 'background.paper', borderRadius: 2 }}>How it works</Button>
+        <Button variant="outlined" startIcon={<MenuBookIcon />} onClick={() => setGuideOpen(true)} sx={{ bgcolor: 'background.paper', borderRadius: 2 }}>How it works</Button>
       </Box>
 
       {/* Main 3-Column Layout */}
@@ -289,7 +292,7 @@ const ChatWithDocument = () => {
                     <ListItemButton 
                       selected={session.id === activeSessionId} 
                       onClick={() => setActiveSessionId(session.id)}
-                      sx={{ borderRadius: 2, py: 1.5, bgcolor: session.id === activeSessionId ? 'rgba(124,58,237,0.05)' : 'transparent', borderLeft: session.id === activeSessionId ? '3px solid #7C3AED' : '3px solid transparent' }}
+                      sx={{ borderRadius: 2, py: 1.5, bgcolor: session.id === activeSessionId ? alpha(theme.palette.primary.main, 0.05) : 'transparent', borderLeft: session.id === activeSessionId ? `3px solid ${theme.palette.primary.main}` : '3px solid transparent' }}
                     >
                       <ListItemText 
                         primary={session.title} 
@@ -351,7 +354,7 @@ const ChatWithDocument = () => {
                       </Box>
                     </Box>
                   </Box>
-                  <Alert severity="info" icon={<AutoAwesomeIcon fontSize="inherit" />} sx={{ bgcolor: 'rgba(124,58,237,0.05)', color: 'text.primary', '& .MuiAlert-icon': { color: 'primary.main' } }}>
+                  <Alert severity="info" icon={<AutoAwesomeIcon fontSize="inherit" />} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05), color: 'text.primary', '& .MuiAlert-icon': { color: 'primary.main' } }}>
                     <Typography variant="caption">Memory helps the AI understand your documents better and provide more accurate answers.</Typography>
                   </Alert>
                 </AccordionDetails>
@@ -441,7 +444,7 @@ const ChatWithDocument = () => {
 
              {messages.map((msg, idx) => (
                <Box key={idx} sx={{ display: 'flex', gap: 2, flexDirection: msg.type === 'user' ? 'row-reverse' : 'row' }}>
-                 <Box sx={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: msg.type === 'user' ? 'rgba(124,58,237,0.1)' : 'rgba(124,58,237,0.1)', color: 'primary.main', fontWeight: 'bold' }}>
+                 <Box sx={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', fontWeight: 'bold' }}>
                     {msg.type === 'user' ? 'U' : <AutoAwesomeIcon fontSize="small" />}
                  </Box>
                  <Box sx={{ maxWidth: '80%' }}>
@@ -462,7 +465,7 @@ const ChatWithDocument = () => {
                           {msg.sources && msg.sources.length > 0 && (
                             <>
                               <Typography variant="caption" color="text.secondary">Sources:</Typography>
-                              {msg.sources.map((s, i) => <Chip key={i} label={s} size="small" icon={<Box component="span" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, bgcolor: 'primary.main', color: 'white', borderRadius: 0.5, ml: 1, fontSize: '0.5rem', fontWeight: 'bold' }}>D</Box>} sx={{ fontSize: '0.7rem', height: 24, bgcolor: 'rgba(124,58,237,0.05)', color: 'text.primary' }} />)}
+                              {msg.sources.map((s, i) => <Chip key={i} label={s} size="small" icon={<Box component="span" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, bgcolor: 'primary.main', color: 'white', borderRadius: 0.5, ml: 1, fontSize: '0.5rem', fontWeight: 'bold' }}>D</Box>} sx={{ fontSize: '0.7rem', height: 24, bgcolor: alpha(theme.palette.primary.main, 0.05), color: 'text.primary' }} />)}
                             </>
                           )}
                        </Box>
@@ -480,7 +483,7 @@ const ChatWithDocument = () => {
              ))}
              {loading && (
                <Box sx={{ display: 'flex', gap: 2 }}>
-                 <Box sx={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(124,58,237,0.1)', color: 'primary.main' }}>
+                 <Box sx={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }}>
                     <AutoAwesomeIcon fontSize="small" />
                  </Box>
                  <Paper sx={{ p: 2.5, borderRadius: '20px 20px 20px 4px', bgcolor: 'white', border: '1px solid #E5E7EB' }}>
@@ -527,6 +530,49 @@ const ChatWithDocument = () => {
           </Box>
         </Paper>
       </Box>
+
+      {/* Guide Dialog */}
+      <Dialog open={guideOpen} onClose={() => setGuideOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3, p: 1 } }}>
+        <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <MenuBookIcon sx={{ color: 'primary.main' }} /> How It Works
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Use this space to interrogate your documents using an AI Agent equipped with memory:
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>1</Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Select or Upload Documents</Typography>
+              <Typography variant="body2" color="text.secondary">Choose documents from your past conversions or upload new external ones (PDF, DOCX, etc.).</Typography>
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>2</Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Agentic Memory Indexing</Typography>
+              <Typography variant="body2" color="text.secondary">The AI processes and indexes the selected documents into a smart local vector memory, tracking facts and key entities.</Typography>
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>3</Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Ask Questions</Typography>
+              <Typography variant="body2" color="text.secondary">Interact with the AI. It will use the indexed memory to find specific information, summarize contents, or extract data points.</Typography>
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>4</Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Save Sessions</Typography>
+              <Typography variant="body2" color="text.secondary">Your conversation history is saved locally. You can create multiple sessions to separate different contexts.</Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button onClick={() => setGuideOpen(false)} variant="contained" sx={{ borderRadius: 2 }}>Got it</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }
