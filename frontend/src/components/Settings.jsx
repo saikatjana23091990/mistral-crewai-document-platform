@@ -13,14 +13,18 @@ import {
   Slider,
   CircularProgress,
   Divider,
-  Avatar
+  Avatar,
+  useTheme
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import axios from 'axios';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
 import BoltIcon from '@mui/icons-material/Bolt';
+import PaletteIcon from '@mui/icons-material/Palette';
+import { useThemeContext } from '../ThemeContext';
 
 const PROVIDERS = [
   {
@@ -122,6 +126,8 @@ const PRESETS = {
 };
 
 const Settings = () => {
+  const theme = useTheme();
+  const { themeColor, setThemeColor } = useThemeContext();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({
@@ -244,7 +250,7 @@ const Settings = () => {
                           borderRadius: 2,
                           border: '2px solid',
                           borderColor: isSelected ? 'primary.main' : 'divider',
-                          bgcolor: isSelected ? 'rgba(124, 58, 237, 0.02)' : 'transparent',
+                          bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.02) : 'transparent',
                           cursor: 'pointer',
                           transition: 'all 0.2s',
                           position: 'relative',
@@ -267,7 +273,7 @@ const Settings = () => {
                           {p.description}
                         </Typography>
                         <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 600, bgcolor: 'rgba(124,58,237,0.1)', px: 1, py: 0.2, borderRadius: 1 }}>
+                          <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 600, bgcolor: alpha(theme.palette.primary.main, 0.1), px: 1, py: 0.2, borderRadius: 1 }}>
                             {p.badge}
                           </Typography>
                         </Box>
@@ -353,7 +359,7 @@ const Settings = () => {
                         sx={{
                           p: 1.5, borderRadius: 2, border: '2px solid',
                           borderColor: isSelected ? 'primary.main' : 'divider',
-                          bgcolor: isSelected ? 'rgba(124, 58, 237, 0.02)' : 'transparent',
+                          bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.02) : 'transparent',
                           cursor: 'pointer', textAlign: 'center',
                           position: 'relative'
                         }}
@@ -401,7 +407,7 @@ const Settings = () => {
                         sx={{
                           p: 1.5, borderRadius: 2, border: '2px solid',
                           borderColor: isSelected ? 'primary.main' : 'divider',
-                          bgcolor: isSelected ? 'rgba(124, 58, 237, 0.02)' : 'transparent',
+                          bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.02) : 'transparent',
                           cursor: 'pointer'
                         }}
                       >
@@ -470,7 +476,7 @@ const Settings = () => {
           </Grid>
 
           <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 3, borderRadius: 3, height: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', bgcolor: 'rgba(124, 58, 237, 0.02)', border: '1px solid rgba(124,58,237,0.1)' }}>
+            <Paper sx={{ p: 3, borderRadius: 3, height: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', bgcolor: alpha(theme.palette.primary.main, 0.02), border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5, color: 'primary.main' }}>7. Configuration Preview</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                 Review your current AI settings.
@@ -491,6 +497,70 @@ const Settings = () => {
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.value}</Typography>
                   </Box>
                 ))}
+              </Box>
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* Card 8 - Appearance */}
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 3, borderRadius: 3, height: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>Appearance</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Choose your preferred color accent for the application.
+              </Typography>
+
+              <Grid container spacing={2}>
+                {[
+                  { id: 'purple', label: 'Purple', desc: 'Modern, professional and trustworthy.', hex: '#7C3AED' },
+                  { id: 'pink', label: 'Pink', desc: 'Energetic, friendly and vibrant.', hex: '#EC4899' },
+                  { id: 'yellow', label: 'Yellow', desc: 'Bright, optimistic and warm.', hex: '#EAB308' },
+                  { id: 'orange', label: 'Orange', desc: 'Bold, creative and confident.', hex: '#F97316' }
+                ].map(opt => {
+                  const isSelected = themeColor === opt.id;
+                  return (
+                    <Grid item xs={12} sm={6} md={3} key={opt.id}>
+                      <Box
+                        onClick={() => setThemeColor(opt.id)}
+                        sx={{
+                          p: 1.5, borderRadius: 2, border: '2px solid',
+                          borderColor: isSelected ? 'primary.main' : 'divider',
+                          bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.02) : 'transparent',
+                          cursor: 'pointer', position: 'relative',
+                          display: 'flex', gap: 2, alignItems: 'center'
+                        }}
+                      >
+                        {isSelected && <CheckCircleOutlineIcon sx={{ position: 'absolute', top: 8, right: 8, color: 'primary.main', fontSize: 16 }} />}
+                        
+                        {/* Mini Theme Preview Graphic */}
+                        <Box sx={{ width: 48, height: 48, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', p: 0.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                           <Box sx={{ height: 10, width: '100%', bgcolor: opt.hex, borderRadius: 0.5 }} />
+                           <Box sx={{ display: 'flex', gap: 0.5 }}>
+                             <Box sx={{ flex: 1, height: 20, bgcolor: alpha(opt.hex, 0.1), borderRadius: 0.5 }} />
+                             <Box sx={{ flex: 2, height: 20, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 0.5 }} />
+                           </Box>
+                        </Box>
+
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary' }}>{opt.label}</Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.1, display: 'block' }}>{opt.desc}</Typography>
+                        </Box>
+                      </Box>
+                    </Grid>
+                  )
+                })}
+              </Grid>
+
+              <Box sx={{ mt: 3, display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>Preview</Typography>
+                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#7C3AED' }} />
+                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#EC4899' }} />
+                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#EAB308' }} />
+                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#F97316' }} />
+                <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                  This will change the accent color across buttons, highlights, and interactive elements.
+                </Typography>
               </Box>
             </Paper>
           </Grid>

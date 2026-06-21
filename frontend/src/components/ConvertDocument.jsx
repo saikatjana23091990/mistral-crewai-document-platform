@@ -3,8 +3,10 @@ import {
   Box, Paper, Typography, Button, Chip, CircularProgress, IconButton,
   Grid, Table, TableHead, TableRow, TableCell, TableBody,
   Select, MenuItem, FormControl, InputLabel,
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField, Menu
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField, Menu,
+  useTheme
 } from '@mui/material'
+import { alpha } from '@mui/material/styles'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import DownloadIcon from '@mui/icons-material/Download'
 import RefreshIcon from '@mui/icons-material/Refresh'
@@ -25,6 +27,7 @@ import axios from 'axios'
 const API_BASE_URL = 'http://localhost:8000'
 
 const ConvertDocument = () => {
+  const theme = useTheme();
   const [currentStep, setCurrentStep] = useState(0)
   const [sourceFiles, setSourceFiles] = useState([])
   const [referenceFile, setReferenceFile] = useState(null)
@@ -35,6 +38,7 @@ const ConvertDocument = () => {
   const [downloadUrl, setDownloadUrl] = useState('')
 
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
   const [editingRowIndex, setEditingRowIndex] = useState(null)
   const [editValue, setEditValue] = useState('')
 
@@ -160,7 +164,21 @@ const ConvertDocument = () => {
   const handleOpenEdit = (index) => {
     setEditingRowIndex(index)
     const row = mappingData[index]
-    const currentVal = row.source.startsWith('Extracted: ') ? row.source.replace('Extracted: ', '') : row.source.replace('Manual: ', '').replace('Similar Field Found', '').replace('-- Unmapped --', '').replace('-- Ignored --', '').replace('Conflict Detected', '').trim()
+    // Use the full extracted value from backend if available, else parse from display label
+    let currentVal = ''
+    if (row.extractedValue) {
+      currentVal = row.extractedValue
+    } else if (row.source.startsWith('Manual: ')) {
+      currentVal = row.source.replace('Manual: ', '')
+    } else if (row.source.startsWith('Extracted: ')) {
+      currentVal = row.source.replace('Extracted: ', '')
+    } else if (row.source.startsWith('Auto Mapped: ')) {
+      currentVal = row.source.replace('Auto Mapped: ', '')
+    } else if (row.source === '-- Unmapped --' || row.source === '-- Ignored --' || row.source === 'Similar Field Found' || row.source === 'Conflict Detected') {
+      currentVal = ''
+    } else {
+      currentVal = row.source
+    }
     setEditValue(currentVal)
     setEditDialogOpen(true)
   }
@@ -205,7 +223,7 @@ const ConvertDocument = () => {
         color: isActive || isCompleted ? 'white' : 'text.disabled',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontWeight: 'bold', fontSize: '0.9rem',
-        boxShadow: isActive ? '0 0 0 4px rgba(124,58,237,0.1)' : 'none',
+        boxShadow: isActive ? `0 0 0 4px ${alpha(theme.palette.primary.main, 0.1)}` : 'none',
         border: isActive || isCompleted ? 'none' : '1px solid #E5E7EB',
         zIndex: 2, position: 'relative'
       }}>
@@ -248,7 +266,7 @@ const ConvertDocument = () => {
         </Box>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={handleReset} sx={{ bgcolor: 'background.paper', borderRadius: 2 }}>Reset</Button>
-          <Button variant="outlined" startIcon={<MenuBookIcon />} sx={{ bgcolor: 'background.paper', borderRadius: 2, color: 'primary.main' }}>Conversion Guide</Button>
+          <Button variant="outlined" startIcon={<MenuBookIcon />} onClick={() => setGuideOpen(true)} sx={{ bgcolor: 'background.paper', borderRadius: 2, color: 'primary.main' }}>Conversion Guide</Button>
         </Box>
       </Box>
 
@@ -278,8 +296,8 @@ const ConvertDocument = () => {
             <Box>
               <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
-                  <Paper sx={{ p: 4, borderRadius: 2, height: '100%', border: '1px dashed #C4B5FD', bgcolor: 'rgba(124,58,237,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 2, cursor: 'pointer' }} onClick={() => sourceInputRef.current?.click()}>
-                    <Box sx={{ p: 2, borderRadius: '50%', bgcolor: 'white', color: 'primary.main', boxShadow: '0 4px 14px rgba(124,58,237,0.1)' }}>
+                  <Paper sx={{ p: 4, borderRadius: 2, height: '100%', border: '1px dashed', borderColor: 'primary.light', bgcolor: alpha(theme.palette.primary.main, 0.02), display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 2, cursor: 'pointer' }} onClick={() => sourceInputRef.current?.click()}>
+                    <Box sx={{ p: 2, borderRadius: '50%', bgcolor: 'background.paper', color: 'primary.main', boxShadow: `0 4px 14px ${alpha(theme.palette.primary.main, 0.1)}` }}>
                       <CloudUploadIcon fontSize="large" />
                     </Box>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>Source Document(s)</Typography>
@@ -290,8 +308,8 @@ const ConvertDocument = () => {
                   </Paper>
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <Paper sx={{ p: 4, borderRadius: 2, height: '100%', border: '1px dashed #C4B5FD', bgcolor: 'rgba(124,58,237,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 2, cursor: 'pointer' }} onClick={() => referenceInputRef.current?.click()}>
-                    <Box sx={{ p: 2, borderRadius: '50%', bgcolor: 'white', color: 'primary.main', boxShadow: '0 4px 14px rgba(124,58,237,0.1)' }}>
+                  <Paper sx={{ p: 4, borderRadius: 2, height: '100%', border: '1px dashed', borderColor: 'primary.light', bgcolor: alpha(theme.palette.primary.main, 0.02), display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 2, cursor: 'pointer' }} onClick={() => referenceInputRef.current?.click()}>
+                    <Box sx={{ p: 2, borderRadius: '50%', bgcolor: 'background.paper', color: 'primary.main', boxShadow: `0 4px 14px ${alpha(theme.palette.primary.main, 0.1)}` }}>
                       <InsertDriveFileIcon fontSize="large" />
                     </Box>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>Reference Document (Target Template)</Typography>
@@ -372,7 +390,7 @@ const ConvertDocument = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: 'primary.main', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>2</Box>
                   <Typography variant="h6" sx={{ fontWeight: 700 }}>Map Review & Confirmation</Typography>
-                  <Chip label="AI Mapping Suggestions" size="small" sx={{ bgcolor: 'rgba(124,58,237,0.1)', color: 'primary.main', fontWeight: 600 }} />
+                  <Chip label="AI Mapping Suggestions" size="small" sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', fontWeight: 600 }} />
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2 }}>
                   <Button variant="outlined" startIcon={<AutoFixHighIcon />} onClick={handleAutoMap} sx={{ borderRadius: 2 }}>Auto Map</Button>
@@ -424,7 +442,7 @@ const ConvertDocument = () => {
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>{row.target}</Typography>
-                          {row.req && <Typography variant="caption" sx={{ color: 'primary.main', bgcolor: 'rgba(124,58,237,0.1)', px: 1, borderRadius: 1 }}>Required</Typography>}
+                          {row.req && <Typography variant="caption" sx={{ color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.1), px: 1, borderRadius: 1 }}>Required</Typography>}
                         </Box>
                       </TableCell>
                       <TableCell>
@@ -455,7 +473,7 @@ const ConvertDocument = () => {
                               <IconButton size="small" onClick={() => handleIgnore(originalIdx)} sx={{ bgcolor: 'rgba(0,0,0,0.03)' }}><VisibilityOffIcon fontSize="small" sx={{ color: 'text.secondary' }} /></IconButton>
                             </>
                           ) : row.status === 'Ignored' ? (
-                            <IconButton size="small" onClick={() => handleOpenEdit(originalIdx)} sx={{ bgcolor: 'rgba(124,58,237,0.05)' }}><EditIcon fontSize="small" sx={{ color: 'primary.main' }} /></IconButton>
+                            <IconButton size="small" onClick={() => handleOpenEdit(originalIdx)} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}><EditIcon fontSize="small" sx={{ color: 'primary.main' }} /></IconButton>
                           ) : (
                             <Button size="small" variant="outlined" onClick={() => handleOpenEdit(originalIdx)} sx={{ py: 0.5 }}>Map</Button>
                           )}
@@ -468,7 +486,7 @@ const ConvertDocument = () => {
               
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 4 }}>
                 <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main' }} /> <Typography variant="caption">High (>=80%)</Typography></Box>
+                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main' }} /> <Typography variant="caption">High (&gt;=80%)</Typography></Box>
                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} /> <Typography variant="caption">Medium (50-79%)</Typography></Box>
                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main' }} /> <Typography variant="caption">Low (&lt;50%)</Typography></Box>
                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'text.disabled' }} /> <Typography variant="caption">Unmapped</Typography></Box>
@@ -518,6 +536,52 @@ const ConvertDocument = () => {
             Provide or select the manual value for the target field: <b>{editingRowIndex !== null ? mappingData[editingRowIndex].target : ''}</b>
           </Typography>
 
+          {/* Contextual guidance based on mapping status */}
+          {editingRowIndex !== null && (() => {
+            const row = mappingData[editingRowIndex]
+            const hasConflicts = row.conflicting_options?.length > 0
+
+            if (hasConflicts) return null  // Conflict UI is shown separately below
+
+            if (row.status === 'Mapped' && row.extractedValue) {
+              return (
+                <Box sx={{ mb: 2, p: 2, bgcolor: 'rgba(76, 175, 80, 0.08)', borderRadius: 2, border: '1px solid rgba(76, 175, 80, 0.25)' }}>
+                  <Typography variant="subtitle2" sx={{ color: 'success.dark', mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CheckCircleOutlineIcon fontSize="small" /> Mapped with {row.conf}% confidence
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Value "<b>{row.extractedValue}</b>" was extracted from <b>{row.doc}</b>. You can confirm or edit below.
+                  </Typography>
+                </Box>
+              )
+            }
+
+            if (row.status === 'Needs Review') {
+              return (
+                <Box sx={{ mb: 2, p: 2, bgcolor: 'rgba(245, 158, 11, 0.08)', borderRadius: 2, border: '1px solid rgba(245, 158, 11, 0.25)' }}>
+                  <Typography variant="subtitle2" sx={{ color: 'warning.dark', mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <AutoFixHighIcon fontSize="small" /> Possible match found ({row.conf}% confidence)
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    A similar field was detected in <b>{row.doc}</b>, but the system couldn't extract an exact value. Please review the source document and enter the correct value below.
+                  </Typography>
+                </Box>
+              )
+            }
+
+            if (row.status === 'Missing') {
+              return (
+                <Box sx={{ mb: 2, p: 2, bgcolor: 'rgba(0, 0, 0, 0.03)', borderRadius: 2, border: '1px solid rgba(0, 0, 0, 0.08)' }}>
+                  <Typography variant="caption" color="text.secondary">
+                    No matching value was found in the source documents. Please enter the value manually if available.
+                  </Typography>
+                </Box>
+              )
+            }
+
+            return null
+          })()}
+
           {editingRowIndex !== null && mappingData[editingRowIndex].conflicting_options && mappingData[editingRowIndex].conflicting_options.length > 0 && (
             <Box sx={{ mb: 3, p: 2, bgcolor: 'rgba(245, 158, 11, 0.1)', borderRadius: 2, border: '1px solid rgba(245, 158, 11, 0.3)' }}>
               <Typography variant="subtitle2" sx={{ color: 'warning.dark', mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -531,7 +595,7 @@ const ConvertDocument = () => {
                   <Paper 
                     key={i}
                     variant="outlined" 
-                    sx={{ p: 1.5, cursor: 'pointer', borderColor: editValue === opt.value ? 'primary.main' : 'divider', bgcolor: editValue === opt.value ? 'rgba(124,58,237,0.05)' : 'transparent' }}
+                    sx={{ p: 1.5, cursor: 'pointer', borderColor: editValue === opt.value ? 'primary.main' : 'divider', bgcolor: editValue === opt.value ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}
                     onClick={() => setEditValue(opt.value)}
                   >
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -547,7 +611,13 @@ const ConvertDocument = () => {
           <TextField
             autoFocus
             margin="dense"
-            label={editingRowIndex !== null && mappingData[editingRowIndex].conflicting_options?.length > 0 ? "Or Enter Custom Value" : "Mapped Value"}
+            label={
+              editingRowIndex !== null && mappingData[editingRowIndex].conflicting_options?.length > 0
+                ? "Or Enter Custom Value"
+                : editingRowIndex !== null && mappingData[editingRowIndex].extractedValue
+                  ? "Confirm or Edit Value"
+                  : "Enter Value"
+            }
             fullWidth
             variant="outlined"
             value={editValue}
@@ -557,6 +627,48 @@ const ConvertDocument = () => {
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setEditDialogOpen(false)} color="inherit">Cancel</Button>
           <Button onClick={handleSaveEdit} variant="contained" sx={{ borderRadius: 2 }}>Save Mapping</Button>
+        </DialogActions>
+      </Dialog>
+    {/* Guide Dialog */}
+      <Dialog open={guideOpen} onClose={() => setGuideOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3, p: 1 } }}>
+        <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <MenuBookIcon sx={{ color: 'primary.main' }} /> Conversion Guide
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Follow these steps to successfully convert and map your documents:
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>1</Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Upload Source Documents</Typography>
+              <Typography variant="body2" color="text.secondary">Provide the documents (PDF, DOCX, XLSX, TXT) containing the raw information.</Typography>
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>2</Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Upload Target Template</Typography>
+              <Typography variant="body2" color="text.secondary">Provide the destination document schema. We support complex PPTX files with charts, or simple Word/Excel templates.</Typography>
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>3</Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Review Mapping</Typography>
+              <Typography variant="body2" color="text.secondary">Our AI agent automatically maps data from the source to the target fields. You can manually edit or resolve conflicting data from multiple sources.</Typography>
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>4</Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Convert & Download</Typography>
+              <Typography variant="body2" color="text.secondary">Generate your final document. PPTX templates will have shapes and charts automatically updated with the newly mapped data.</Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button onClick={() => setGuideOpen(false)} variant="contained" sx={{ borderRadius: 2 }}>Got it</Button>
         </DialogActions>
       </Dialog>
     </Box>

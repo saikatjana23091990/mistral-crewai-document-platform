@@ -12,8 +12,10 @@ Convert documents from multiple sources into a single reference format (XLSX / D
 
 ![Convert Document Wizard](Application%20Previews/Convert%20Document%20Interface.png)
 
-- **Modern Neomorphic UI**: Beautiful 4-step wizard design (Lavender/White theme).
-- **Upload**: Multiple source documents (PDF, DOCX, XLSX, TXT) and a reference template file.
+- **Modern Neomorphic UI**: Beautiful 4-step wizard design (Customizable Appearance Settings with Purple, Pink, Yellow, and Orange themes).
+- **Upload**: Multiple source documents (PDF, DOCX, XLSX, TXT, PPTX) and a reference template file.
+- **Graphical Template Support**: PPTX templates are supported with automated shape and chart replacements.
+- **In-App Guides**: Built-in "Conversion Guide" and "How It Works" dialogs.
 - **Interactive Map Review**: 
   - Preview AI-suggested mappings and confidence scores.
   - **Manual Overrides**: Edit extracted values or manually map missing fields.
@@ -48,7 +50,8 @@ Convert documents from multiple sources into a single reference format (XLSX / D
 ![Settings Page](Application%20Previews/Settings%20and%20stat%20page.png)
 
 - **Centralized Configuration**: Globally control the active LLM provider and parameters (temperature, model type, streaming).
-- **Usage Stats**: Live dashboard metric cards for platform monitoring.
+- **Appearance Customization**: Dynamically switch the app theme colors (Purple, Pink, Yellow, Orange) with persistent state.
+- **Usage Stats & History**: Live dashboard metric cards with dynamic average success rates and filterable conversion history.
 
 ### Technical Highlights
 - FastAPI backend with LangChain + ChromaDB
@@ -68,7 +71,7 @@ Convert documents from multiple sources into a single reference format (XLSX / D
 | Document    | PyMuPDF, python-docx, pandas, openpyxl, unstructured |
 | Deployment  | Docker Compose                      |
 
-## 🚀 Quick Start
+## 🚀 Installation Guide
 
 ### Option 1: Local Development (Recommended for development)
 
@@ -206,26 +209,13 @@ docker compose logs -f backend
 docker compose down -v
 ```
 
-## 📦 Preparing for GitHub
-
-This repository is ready for GitHub:
-
-```bash
-git init
-git add .
-git commit -m "Initial commit: Document conversion + agentic RAG platform"
-git remote add origin https://github.com/<your-username>/mistral-crewai-document-platform.git
-git branch -M main
-git push -u origin main
-```
-
 ## 🛠️ Future Improvements
 
-- Add more document formats (PPTX, images via OCR)
+- Add more document formats (images via OCR)
 - Streaming responses in chat
-- User authentication
+- User authentication and Role-Based Access Control (RBAC)
 - Batch conversion jobs
-- Advanced semantic retrieval (embeddings)
+- Advanced semantic retrieval (custom embeddings and chunking)
 
 ## 📄 License
 

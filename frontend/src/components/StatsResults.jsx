@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react'
 import {
   Box, Typography, Paper, Grid, TextField, InputAdornment, Button, Chip,
   Table, TableHead, TableRow, TableCell, TableBody, CircularProgress,
-  IconButton, Collapse, Tooltip
+  IconButton, Collapse, Tooltip, useTheme, TableContainer, Menu, MenuItem
 } from '@mui/material'
+import { alpha } from '@mui/material/styles'
 import SearchIcon from '@mui/icons-material/Search'
 import FilterListIcon from '@mui/icons-material/FilterList'
 import DownloadIcon from '@mui/icons-material/Download'
@@ -50,6 +51,7 @@ const MappingPieChart = ({ percentage }) => {
 }
 
 const Row = ({ row }) => {
+  const theme = useTheme();
   const [open, setOpen] = useState(false)
   const isMultiple = row.source_documents && row.source_documents.length > 1
 
@@ -151,7 +153,7 @@ const Row = ({ row }) => {
                             <Typography variant="body2" color="primary.main">{row.target_template}</Typography>
                           </Box>
                         </TableCell>
-                        <TableCell sx={{ borderBottom: 0 }}><Chip label="Target" size="small" color="primary" sx={{ height: 20, fontSize: '0.7rem', bgcolor: 'rgba(124, 58, 237, 0.1)', color: 'primary.main' }} /></TableCell>
+                        <TableCell sx={{ borderBottom: 0 }}><Chip label="Target" size="small" color="primary" sx={{ height: 20, fontSize: '0.7rem', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }} /></TableCell>
                         <TableCell sx={{ borderBottom: 0 }}><Typography variant="body2" color="text.secondary">{row.converted_by}</Typography></TableCell>
                         <TableCell sx={{ borderBottom: 0 }}><Typography variant="body2" color="text.secondary">{row.conversion_date}</Typography></TableCell>
                         <TableCell sx={{ borderBottom: 0 }}><Typography variant="body2" color="text.secondary">-</Typography></TableCell>
@@ -178,6 +180,9 @@ const Row = ({ row }) => {
 
 const StatsResults = () => {
   const [records, setRecords] = useState([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterStatus, setFilterStatus] = useState('All')
+  const [anchorEl, setAnchorEl] = useState(null)
   const [stats, setStats] = useState({
     documents_converted: 0,
     chat_interactions: 0,
@@ -195,8 +200,6 @@ const StatsResults = () => {
         axios.get(`${API_BASE_URL}/stats`),
         axios.get(`${API_BASE_URL}/history`)
       ])
-      
-      setStats(statsRes.data)
 
       const historyData = historyRes.data.records || []
       const formattedRecords = historyData.map(record => {
@@ -213,6 +216,11 @@ const StatsResults = () => {
         }
       })
       
+      const avgSuccessRate = formattedRecords.length > 0 
+        ? Math.round(formattedRecords.reduce((acc, curr) => acc + curr.mapping_success_percentage, 0) / formattedRecords.length)
+        : 100;
+
+      setStats({ ...statsRes.data, success_rate: avgSuccessRate })
       setRecords(formattedRecords)
     } catch (err) {
       console.error("Failed to fetch data", err)
@@ -232,6 +240,13 @@ const StatsResults = () => {
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
+
+  const filteredRecords = records.filter(row => {
+    const matchesSearch = row.conversion_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          row.target_template.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = filterStatus === 'All' || row.status === filterStatus;
+    return matchesSearch && matchesFilter;
+  });
 
   return (
     <Box sx={{ pb: 4, px: 1 }}>
@@ -307,6 +322,8 @@ const StatsResults = () => {
               <TextField
                 size="small"
                 placeholder="Search by document or target template..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 sx={{ width: 350, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                 InputProps={{
                   startAdornment: (
@@ -316,41 +333,50 @@ const StatsResults = () => {
                   ),
                 }}
               />
-              <Button variant="outlined" startIcon={<FilterListIcon />} sx={{ borderRadius: 2 }}>Filter</Button>
+              <Button variant="outlined" startIcon={<FilterListIcon />} sx={{ borderRadius: 2 }} onClick={(e) => setAnchorEl(e.currentTarget)}>
+                {filterStatus === 'All' ? 'Filter' : filterStatus}
+              </Button>
+              <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+                <MenuItem onClick={() => { setFilterStatus('All'); setAnchorEl(null); }}>All</MenuItem>
+                <MenuItem onClick={() => { setFilterStatus('Success'); setAnchorEl(null); }}>Success</MenuItem>
+                <MenuItem onClick={() => { setFilterStatus('Failed'); setAnchorEl(null); }}>Failed</MenuItem>
+              </Menu>
             </Box>
           </Box>
 
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Conversion Name</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Type</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Source Documents / Target Template</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Converted By</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Conversion Date ↓</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Success Mapping</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Status</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600, color: 'text.secondary' }}>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {loading ? (
+          <TableContainer sx={{ maxHeight: 600, overflow: 'auto' }}>
+            <Table stickyHeader>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 10 }}>
-                    <CircularProgress />
-                  </TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Conversion Name</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Type</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Source Documents / Target Template</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Converted By</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Conversion Date ↓</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Success Mapping</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Status</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Actions</TableCell>
                 </TableRow>
-              ) : records.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 10 }}>
-                    <Typography color="text.secondary">No conversions found</Typography>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                records.map((row, index) => <Row key={index} row={row} />)
-              )}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} align="center" sx={{ py: 10 }}>
+                      <CircularProgress />
+                    </TableCell>
+                  </TableRow>
+                ) : filteredRecords.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} align="center" sx={{ py: 10 }}>
+                      <Typography color="text.secondary">No conversions found</Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredRecords.map((row, index) => <Row key={index} row={row} />)
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </Paper>
       </Box>
     </Box>
