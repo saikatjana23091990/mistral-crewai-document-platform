@@ -79,11 +79,7 @@ const ConvertDocument = () => {
   const removeSource = (index) => setSourceFiles(prev => prev.filter((_, i) => i !== index))
 
   const handleReset = () => {
-    setCurrentStep(0)
-    setSourceFiles([])
-    setReferenceFile(null)
-    setMappingData([])
-    setDownloadUrl('')
+    window.location.reload()
   }
 
   const handlePreviewMapping = async () => {

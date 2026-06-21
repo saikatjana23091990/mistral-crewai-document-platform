@@ -278,7 +278,7 @@ def generate_output_file(converted_text: str, target_format: str, source_stem: s
             
             # If there's a table that seems to match our columns, use its rows
             if tables:
-                target_table = tables[0]
+                target_table = None
                 for tbl in tables:
                     # check if headers overlap well with our columns
                     headers = tbl.get("headers", [])
@@ -286,13 +286,16 @@ def generate_output_file(converted_text: str, target_format: str, source_stem: s
                         target_table = tbl
                         break
                         
-                headers = target_table.get("headers", [])
-                for row_data in target_table.get("rows", []):
-                    row_dict = dict(fields) # Start with base fields
-                    for i, val in enumerate(row_data):
-                        if i < len(headers) and headers[i]:
-                            row_dict[headers[i]] = val
-                    rows_to_write.append(row_dict)
+                if target_table:
+                    headers = target_table.get("headers", [])
+                    for row_data in target_table.get("rows", []):
+                        row_dict = dict(fields) # Start with base fields
+                        for i, val in enumerate(row_data):
+                            if i < len(headers) and headers[i]:
+                                row_dict[headers[i]] = val
+                        rows_to_write.append(row_dict)
+                else:
+                    rows_to_write.append(fields)
             else:
                 rows_to_write.append(fields)
                 
