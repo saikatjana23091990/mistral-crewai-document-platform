@@ -1,6 +1,6 @@
 import json
 
-def run_conversion(source_text, reference_text, target_format="txt", resolutions=None, provider="groq", manifest_slots=None, source_tags=None):
+def run_conversion(source_text, reference_text, target_format="txt", resolutions=None, provider="groq"):
     try:
         from crewai import Crew, Task
         from app.agents.document_agents import get_agents
@@ -11,39 +11,13 @@ def run_conversion(source_text, reference_text, target_format="txt", resolutions
             f.write(traceback.format_exc())
         return _fallback_conversion(source_text, reference_text, target_format, resolutions)
 
-    def escape_braces(text: str) -> str:
-        return text.replace("{", "{{").replace("}", "}}") if text else ""
-
     resolutions_str = ""
     if resolutions:
-        resolutions_str = escape_braces(f"\n\nUSER RESOLVED CONFLICTS (prefer these values over conflicting ones):\n{json.dumps(resolutions, indent=2)}\n")
+        resolutions_str = f"\n\nUSER RESOLVED CONFLICTS (prefer these values over conflicting ones):\n{json.dumps(resolutions, indent=2)}\n"
 
-    manifest_str = escape_braces(f"\n\nTEMPLATE MANIFEST (Target Fields & Formatting Rules):\n{json.dumps(manifest_slots, indent=2)}\n") if manifest_slots else ""
-    source_tags_str = escape_braces(f"\n\nSOURCE AUTHORITY TAGS (e.g. prioritize 'approval' over narrative):\n{json.dumps(source_tags, indent=2)}\n") if source_tags else ""
-    safe_source_text = escape_braces(source_text)
     
-    if target_format == "pptx":
-        extraction_description = f'''
-            Extract ALL information from the combined source documents into a structured, evidence-backed representation.
-
-            TEMPLATE MANIFEST CONTEXT:
-            {manifest_str}
-            Pay special attention to 'hint_text' inside the manifest. It often contains extraction instructions (e.g., "Insert approved indication" or "Requires 2 units").
-            If a manifest slot requires a merge (N:1), extract all relevant source facts to combine them.
-            If a manifest slot requires splitting (1:N), extract the source fact clearly.
-            Extract units carefully. If the template implies a unit (e.g., %), and the source has a different unit (e.g., points), extract the source unit and DO NOT silently coerce it.
-
-            AUTHORITY RULES:
-            {source_tags_str}
-            If a document is tagged with high authority (e.g., 'approval' or 'compliance'), its claims OVERRIDE conflicting narrative reports.
-            If multiple independent sources agree on a value, treat this agreement as high confidence evidence.
-
-            COMBINED SOURCES:
-            {safe_source_text}
-            {resolutions_str}
-            '''
-    else:
-        extraction_description = f'''
+    extraction_task = Task(
+        description=f'''
         Extract ALL information from the combined source documents into a structured, evidence-backed representation.
 
         EXTRACTION OBJECTIVE:
@@ -81,12 +55,9 @@ def run_conversion(source_text, reference_text, target_format="txt", resolutions
         key_skills, highest_education, certifications, email, phone, work_experience, education
 
         COMBINED SOURCES:
-        {safe_source_text}
+        {source_text}
         {resolutions_str}
-        '''
-        
-    extraction_task = Task(
-        description=extraction_description,
+        ''',
         expected_output="""
         A structured extraction result with:
         - canonical field candidates
@@ -134,7 +105,7 @@ def run_conversion(source_text, reference_text, target_format="txt", resolutions
         - conflict/resolution note if applicable
 
         TARGET REFERENCE STRUCTURE:
-        {escape_braces(reference_text)}
+        {reference_text}
         ''',
         expected_output="""
         Normalized mapping table with:
@@ -158,7 +129,7 @@ def run_conversion(source_text, reference_text, target_format="txt", resolutions
 
         TARGET FORMAT: {target_format.upper()}
         REFERENCE DOCUMENT STRUCTURE:
-        {escape_braces(reference_text)}
+        {reference_text}
 
         CRITICAL RULES:
         1. Follow the exact structure, sections, rows, columns, and field order from the reference.
@@ -176,63 +147,12 @@ def run_conversion(source_text, reference_text, target_format="txt", resolutions
         If a reasonable human reviewer would consider the source content an obvious match for a reference field, populate that field using the best supported source value.
     '''
 
-    if target_format == "pptx":
-        formatting_instructions += f'''
-        
-        TEMPLATE MANIFEST (exact field names to use as JSON keys):
-        {manifest_str}
-        
-        CRITICAL EXTRAC RULES FOR STRUCTURED TARGETS:
-        You MUST output ONLY a valid JSON object and nothing else (no markdown wrappers like ```json, no conversational text).
-        If the target is 'pptx' (PowerPoint), you MUST heavily summarize the extracted content to fit into graphical placeholders while keeping the core message intact.
-        
-        Format the normalized data strictly according to the target format.
-
-        The JSON MUST have this exact structure:
-        {{
-          "fields": {{
-             "Field Name 1 from reference": {{
-                "value": "Mapped Value 1",
-                "unit": "Any extracted unit (e.g. %, points, years)",
-                "source_files": ["doc1.pdf", "doc2.docx"],
-                "confidence": "high|medium|low|corroborated",
-                "needs_review": false,
-                "review_reason": null,
-                "conflicting_options": []
-             }}
-          }},
-          "tables": [
-             {{
-               "headers": ["Col1", "Col2"],
-               "rows": [ ["Val1", "Val2"] ]
-             }}
-          ],
-          "charts": [
-             {{
-               "chart_ref": "shapeID from manifest",
-               "category": "Category Label",
-               "series": {{
-                 "Series Name 1": 12.5,
-                 "Series Name 2": 45
-               }}
-             }}
-          ]
-        }}
-
-        CRITICAL CHART RULES:
-        If the template manifest contains 'format': 'chart', you MUST populate the "charts" array. Use the exact 'chart_ref' from the manifest. Output numeric values ONLY in the series dictionary.
-        
-        CRITICAL FIELD RULES:
-        The keys in the "fields" dictionary MUST exactly match the 'target_label' values from the Template Manifest. Do not make up your own keys.
-        If a template field is not found in the source documents, output the value "[Information not found in source documents]". DO NOT GUESS.
-        If you detect conflicting values from different sources for a single field, set "needs_review" to true and list ALL alternative values as strings in the "conflicting_options" array.
-        '''
-        expected_output = "A valid JSON object containing 'fields', 'tables' and 'charts' mapping the values to the reference structure."
-    elif target_format in ["docx", "xlsx"]:
+    if target_format in ["docx", "xlsx", "pptx"]:
         formatting_instructions += '''
         
         CRITICAL EXTRAC RULES FOR STRUCTURED TARGETS:
         You MUST output ONLY a valid JSON object and nothing else (no markdown wrappers like ```json, no conversational text).
+        If the target is 'pptx' (PowerPoint), you MUST heavily summarize the extracted content to fit into graphical placeholders while keeping the core message intact.
         The JSON MUST have this exact structure:
         {
           "fields": {

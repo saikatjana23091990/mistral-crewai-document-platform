@@ -160,7 +160,21 @@ const ConvertDocument = () => {
   const handleOpenEdit = (index) => {
     setEditingRowIndex(index)
     const row = mappingData[index]
-    const currentVal = row.source.startsWith('Extracted: ') ? row.source.replace('Extracted: ', '') : row.source.replace('Manual: ', '').replace('Similar Field Found', '').replace('-- Unmapped --', '').replace('-- Ignored --', '').replace('Conflict Detected', '').trim()
+    // Use the full extracted value from backend if available, else parse from display label
+    let currentVal = ''
+    if (row.extractedValue) {
+      currentVal = row.extractedValue
+    } else if (row.source.startsWith('Manual: ')) {
+      currentVal = row.source.replace('Manual: ', '')
+    } else if (row.source.startsWith('Extracted: ')) {
+      currentVal = row.source.replace('Extracted: ', '')
+    } else if (row.source.startsWith('Auto Mapped: ')) {
+      currentVal = row.source.replace('Auto Mapped: ', '')
+    } else if (row.source === '-- Unmapped --' || row.source === '-- Ignored --' || row.source === 'Similar Field Found' || row.source === 'Conflict Detected') {
+      currentVal = ''
+    } else {
+      currentVal = row.source
+    }
     setEditValue(currentVal)
     setEditDialogOpen(true)
   }

@@ -433,16 +433,11 @@ def generate_output_file(converted_text: str, target_format: str, source_stem: s
                 cleaned_text = cleaned_text[7:]
             elif cleaned_text.startswith("```"):
                 cleaned_text = cleaned_text[3:]
-            import re
-            json_match = re.search(r'\{.*\}', cleaned_text, re.DOTALL)
-            if json_match:
-                cleaned_text = json_match.group(0)
+            if cleaned_text.endswith("```"):
+                cleaned_text = cleaned_text[:-3]
             
-            data = json.loads(cleaned_text)
+            data = json.loads(cleaned_text.strip())
             fields = data.get("fields", {})
-            for k, v in fields.items():
-                if isinstance(v, dict) and "value" in v:
-                    fields[k] = v.get("value", "")
             
             for slide in prs.slides:
                 for shape in slide.shapes:
@@ -494,11 +489,6 @@ def generate_output_file(converted_text: str, target_format: str, source_stem: s
                                                     row_cells[col_idx].text = str(cell_val)
                                     break
                                     
-            charts_data = data.get("charts", [])
-            if charts_data:
-                from app.services.pptx_chart_writer import update_pptx_charts
-                update_pptx_charts(prs, charts_data)
-                
         except Exception:
             pass # fallback or ignore if json fails for pptx
 
@@ -543,7 +533,6 @@ async def preview_mapping(
 
     reference_path = UPLOAD_DIR / reference_file.filename
     with open(reference_path, "wb") as buffer:
-        import shutil
         shutil.copyfileobj(reference_file.file, buffer)
 
     source_data_list = []
@@ -558,127 +547,6 @@ async def preview_mapping(
             pass
 
     target_format = get_target_format(reference_file.filename)
-
-    # ── PPTX: use manifest-based AI preview ──
-    if target_format == "pptx":
-        from app.services.template_manifest import build_field_manifest
-        manifest_slots = build_field_manifest(str(reference_path))
-        if not manifest_slots:
-            manifest_slots = [{"slot_id": "fallback", "target_label": col, "hint_text": ""} for col in ["Title", "Subtitle", "Content"]]
-
-        combined_source_text = "\n\n".join([f"--- SOURCE: {sd['name']} ---\n{sd['text']}" for sd in source_data_list])
-
-        from app.services.conversion_service import run_conversion
-        import asyncio
-        import functools
-        try:
-            reference_text = parse_document(str(reference_path))
-        except Exception:
-            reference_text = ""
-
-        converted_output = await asyncio.to_thread(
-            functools.partial(
-                run_conversion,
-                source_text=combined_source_text,
-                reference_text=reference_text,
-                target_format=target_format,
-                provider=global_settings.get("provider", "groq"),
-                manifest_slots=manifest_slots
-            )
-        )
-
-        mappings = []
-        try:
-            cleaned_text = str(converted_output).strip()
-            json_match = re.search(r'\{.*\}', cleaned_text, re.DOTALL)
-            if json_match:
-                cleaned_text = json_match.group(0)
-
-            data = json.loads(cleaned_text)
-            fields = data.get("fields", {})
-
-            for slot in manifest_slots:
-                target_label = slot["target_label"]
-                mapped_obj = fields.get(target_label, {})
-                conflicting_options = []
-
-                if isinstance(mapped_obj, str):
-                    val = mapped_obj
-                    conf = 80
-                    status = "Mapped"
-                    color = "success.main"
-                    doc = "Multiple"
-                    if val == "[Information not found in source documents]":
-                        status = "Missing"
-                        color = "error.main"
-                        conf = None
-                        val = "-- Unmapped --"
-                elif not mapped_obj:
-                    val = "-- Unmapped --"
-                    conf = None
-                    status = "Missing"
-                    color = "error.main"
-                    doc = "-"
-                else:
-                    val = mapped_obj.get("value", "-- Unmapped --")
-                    conf_str = str(mapped_obj.get("confidence", "high")).lower()
-                    status = "Mapped"
-                    color = "success.main"
-                    doc = ", ".join(mapped_obj.get("source_files", ["Multiple"]))
-                    conflicting_options = mapped_obj.get("conflicting_options", [])
-
-                    if val == "[Information not found in source documents]":
-                        status = "Missing"
-                        color = "error.main"
-                        conf = None
-                        val = "-- Unmapped --"
-                    else:
-                        if mapped_obj.get("needs_review") or len(conflicting_options) > 0:
-                            status = "Conflict"
-                            color = "warning.main"
-                            conf = 50
-                            if val not in conflicting_options and val != "-- Unmapped --":
-                                conflicting_options.insert(0, val)
-                        elif conf_str == "high" or conf_str == "corroborated":
-                            conf = 95
-                        elif conf_str == "medium":
-                            conf = 75
-                            status = "Needs Review"
-                            color = "warning.main"
-                        else:
-                            conf = 50
-                            status = "Needs Review"
-                            color = "warning.main"
-
-                mappings.append({
-                    "target": target_label,
-                    "req": True,
-                    "source": str(val)[:50] + ("..." if len(str(val)) > 50 else ""),
-                    "doc": doc,
-                    "conf": conf,
-                    "status": status,
-                    "color": color,
-                    "conflicting_options": conflicting_options,
-                    "extractedValue": str(val) if val and val != "-- Unmapped --" else ""
-                })
-
-        except Exception:
-            for slot in manifest_slots:
-                mappings.append({
-                    "target": slot["target_label"],
-                    "req": True,
-                    "source": "Preview Failed - Will run full on Convert",
-                    "doc": "-",
-                    "conf": 50,
-                    "status": "Needs Review",
-                    "color": "warning.main",
-                    "conflicting_options": [],
-                    "extractedValue": ""
-                })
-
-        return {"mappings": mappings}
-
-    # ── NON-PPTX (xlsx, docx, txt, pdf): use fast regex-based preview ──
     reference_columns = _get_reference_columns(str(reference_path)) if target_format == "xlsx" else ["Customer Name", "Customer ID", "Industry", "Primary Contact", "Email", "Billing Address"]
     if not reference_columns:
         reference_columns = ["Quarter", "Region", "Total Sales", "Date", "Prepared By"]
@@ -686,7 +554,7 @@ async def preview_mapping(
     mappings = []
     for idx, col in enumerate(reference_columns):
         req = col.lower() in ["customer name", "customer id", "email", "contract start date", "quarter", "region"]
-
+        
         found_vals = []
         for sf in source_data_list:
             extracted = _extract_data_for_columns(sf["text"], [col])
@@ -700,8 +568,9 @@ async def preview_mapping(
         status = "Missing"
         color = "error.main"
         conflicting_options = []
-
+        
         if len(found_vals) > 0:
+            # Check unique values
             unique_vals = list({fv["val"] for fv in found_vals})
             if len(unique_vals) > 1:
                 # Conflict!
@@ -712,24 +581,18 @@ async def preview_mapping(
                 color = "warning.main"
                 conflicting_options = [{"doc": fv["doc"], "value": fv["val"]} for fv in found_vals]
             else:
-                source_field = f"Extracted: {unique_vals[0][:40]}"
+                source_field = f"Extracted: {unique_vals[0][:20]}"
                 doc = found_vals[0]["doc"]
                 conf = 85 + (len(unique_vals[0]) % 15)
                 status = "Mapped"
                 color = "success.main"
-
+        
         if status == "Missing" and idx % 3 == 0:
             source_field = "Similar Field Found"
             conf = 65
             status = "Needs Review"
             color = "warning.main"
             doc = source_data_list[0]["name"] if source_data_list else "-"
-
-        # Determine the full extracted value for the edit dialog
-        extracted_value = ""
-        if len(found_vals) > 0:
-            unique_vals_list = list({fv["val"] for fv in found_vals})
-            extracted_value = unique_vals_list[0] if len(unique_vals_list) == 1 else ""
 
         mappings.append({
             "target": col,
@@ -739,8 +602,7 @@ async def preview_mapping(
             "conf": conf,
             "status": status,
             "color": color,
-            "conflicting_options": conflicting_options,
-            "extractedValue": extracted_value
+            "conflicting_options": conflicting_options
         })
 
     return {"mappings": mappings}
@@ -800,12 +662,6 @@ async def convert_document(
 
     detected_conflicts = detect_conflicts(source_data_list, reference_columns)
 
-    # Only build and pass manifest for pptx graphical templates
-    manifest_slots = None
-    if target_format == "pptx":
-        from app.services.template_manifest import build_field_manifest
-        manifest_slots = build_field_manifest(str(reference_path))
-    
     try:
         import asyncio
         converted_output = await asyncio.to_thread(
@@ -814,8 +670,7 @@ async def convert_document(
             reference_text,
             target_format,
             resolutions_dict,
-            provider,
-            manifest_slots
+            provider
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Conversion failed: {exc}") from exc
