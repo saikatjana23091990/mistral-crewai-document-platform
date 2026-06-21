@@ -16,8 +16,8 @@ This project supports running the full stack using Docker Compose.
 
 2. **Edit `.env`** and add your API keys:
    ```env
-   MISTRAL_API_KEY=sk-...
-   GEMINI_API_KEY=AIza...
+   GROQ_API_KEY=your_groq_key
+   OPENROUTER_API_KEY=your_openrouter_key
    AWS_BEARER_TOKEN_BEDROCK=bedrock-api-key-...
    AWS_REGION=us-east-1
    ```
