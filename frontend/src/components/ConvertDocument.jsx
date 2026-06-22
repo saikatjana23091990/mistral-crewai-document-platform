@@ -23,6 +23,7 @@ import SearchIcon from '@mui/icons-material/Search'
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
 import MenuBookIcon from '@mui/icons-material/MenuBook'
 import axios from 'axios'
+import { PROVIDERS_AND_MODELS } from '../utils/providerModels'
 
 const API_BASE_URL = 'http://localhost:8000'
 
@@ -32,6 +33,7 @@ const ConvertDocument = () => {
   const [sourceFiles, setSourceFiles] = useState([])
   const [referenceFile, setReferenceFile] = useState(null)
   const [provider, setProvider] = useState('groq')
+  const [model, setModel] = useState(PROVIDERS_AND_MODELS['groq'].models[0].id)
   
   const [mappingData, setMappingData] = useState([])
   const [isProcessing, setIsProcessing] = useState(false)
@@ -53,12 +55,23 @@ const ConvertDocument = () => {
     // Fetch global settings to set the default provider
     axios.get(`${API_BASE_URL}/settings`)
       .then(res => {
-        if (res.data && res.data.provider) {
+        if (res.data && res.data.provider && PROVIDERS_AND_MODELS[res.data.provider]) {
           setProvider(res.data.provider)
+          if (res.data.model && PROVIDERS_AND_MODELS[res.data.provider].models.some(m => m.id === res.data.model)) {
+            setModel(res.data.model)
+          } else {
+            setModel(PROVIDERS_AND_MODELS[res.data.provider].models[0].id)
+          }
         }
       })
       .catch(err => console.error("Failed to load default provider", err))
   }, [])
+
+  const handleProviderChange = (e) => {
+    const newProv = e.target.value;
+    setProvider(newProv);
+    setModel(PROVIDERS_AND_MODELS[newProv].models[0].id);
+  }
 
   const steps = [
     { id: 1, title: 'Upload Documents', desc: 'Add source files and reference template', icon: <CloudUploadIcon /> },
@@ -94,6 +107,8 @@ const ConvertDocument = () => {
       const formData = new FormData()
       sourceFiles.forEach(sf => formData.append('source_files', sf.file))
       formData.append('reference_file', referenceFile.file)
+      formData.append('provider', provider)
+      formData.append('model', model)
 
       const res = await axios.post(`${API_BASE_URL}/preview_mapping`, formData)
       setMappingData(res.data.mappings || [])
@@ -115,6 +130,7 @@ const ConvertDocument = () => {
       sourceFiles.forEach(sf => formData.append('source_files', sf.file))
       formData.append('reference_file', referenceFile.file)
       formData.append('provider', provider)
+      formData.append('model', model)
 
       // Pass user resolutions based on manual mapping and ignore actions
       const userResolutions = {}
@@ -364,10 +380,24 @@ const ConvertDocument = () => {
                   <Select
                     value={provider}
                     label="LLM Provider"
-                    onChange={(e) => setProvider(e.target.value)}
+                    onChange={handleProviderChange}
                   >
-                    <MenuItem value="groq">GroqCloud</MenuItem>
-                    <MenuItem value="openrouter">OpenRouter</MenuItem>
+                    {Object.entries(PROVIDERS_AND_MODELS).map(([key, data]) => (
+                      <MenuItem key={key} value={key}>{data.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel>Model</InputLabel>
+                  <Select
+                    value={model}
+                    label="Model"
+                    onChange={(e) => setModel(e.target.value)}
+                  >
+                    {PROVIDERS_AND_MODELS[provider].models.map(m => (
+                      <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
                 <Button 

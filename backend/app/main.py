@@ -50,7 +50,7 @@ DEFAULT_STATS = {
 DEFAULT_HISTORY = []
 DEFAULT_SETTINGS = {
     "provider": "groq",
-    "model": "llama-4-maverick",
+    "model": "llama-3.1-8b-instant",
     "temperature": 0.5,
     "reasoningDepth": "fast",
     "memoryEnabled": True,
@@ -420,20 +420,197 @@ def generate_output_file(converted_text: str, target_format: str, source_stem: s
 
     elif target_format == "pptx":
         from pptx import Presentation
+        from pptx.util import Pt, Emu
+        from copy import deepcopy
+        from lxml import etree
         import re
         if reference_path and Path(reference_path).exists():
             prs = Presentation(reference_path)
         else:
             prs = Presentation()
             prs.slides.add_slide(prs.slide_layouts[0])
+
+        def _copy_run_format(source_run, target_run):
+            """Copy all font/run-level formatting from source_run to target_run."""
+            try:
+                # Deep-copy the entire rPr (run properties) XML element if it exists
+                source_rpr = source_run._r.find(
+                    '{http://schemas.openxmlformats.org/drawingml/2006/main}rPr'
+                )
+                if source_rpr is not None:
+                    target_rpr = target_run._r.find(
+                        '{http://schemas.openxmlformats.org/drawingml/2006/main}rPr'
+                    )
+                    new_rpr = deepcopy(source_rpr)
+                    if target_rpr is not None:
+                        target_run._r.replace(target_rpr, new_rpr)
+                    else:
+                        # Insert rPr before the text element
+                        target_run._r.insert(0, new_rpr)
+            except Exception:
+                pass
+
+        def _replace_in_paragraph_runs(paragraph, old_text, new_value):
+            """
+            Surgically replace `old_text` with `new_value` across the paragraph's
+            runs while preserving every run's original formatting.
             
+            Strategy:
+            1. Walk runs to find which ones contain the target text (which may span
+               multiple runs due to PowerPoint's run-splitting).
+            2. Replace only the matched portion, keeping surrounding text in its
+               original run with its original formatting.
+            3. If the match spans multiple runs, put the replacement text in the
+               first affected run (keeping its formatting) and remove the matched
+               portion from subsequent runs.
+            """
+            runs = list(paragraph.runs)
+            if not runs:
+                return False
+
+            # Build a map: for each character position in the concatenated text,
+            # record (run_index, offset_within_run)
+            full_text = paragraph.text
+            match_start = full_text.lower().find(old_text.lower())
+            if match_start == -1:
+                return False
+            match_end = match_start + len(old_text)
+
+            # Build position-to-run mapping
+            char_pos = 0
+            run_ranges = []  # (start_pos, end_pos, run_index)
+            for r_idx, run in enumerate(runs):
+                run_len = len(run.text)
+                run_ranges.append((char_pos, char_pos + run_len, r_idx))
+                char_pos += run_len
+
+            # Find which runs are affected by the match
+            affected = []
+            for (r_start, r_end, r_idx) in run_ranges:
+                if r_start < match_end and r_end > match_start:
+                    # This run overlaps with the match
+                    # Calculate the portion of this run's text that is matched
+                    overlap_start = max(match_start, r_start) - r_start
+                    overlap_end = min(match_end, r_end) - r_start
+                    affected.append((r_idx, overlap_start, overlap_end))
+
+            if not affected:
+                return False
+
+            # First affected run: replace the matched portion with new_value
+            first_r_idx, first_overlap_start, first_overlap_end = affected[0]
+            first_run = runs[first_r_idx]
+            run_text = first_run.text
+            first_run.text = run_text[:first_overlap_start] + str(new_value) + run_text[first_overlap_end:]
+
+            # Remaining affected runs: remove only the matched portion
+            for (r_idx, overlap_start, overlap_end) in affected[1:]:
+                run = runs[r_idx]
+                run_text = run.text
+                run.text = run_text[:overlap_start] + run_text[overlap_end:]
+
+            return True
+
+        def _replace_text_in_paragraph(paragraph, fields):
+            """
+            Try to replace field placeholders in a paragraph while preserving
+            all run-level formatting. Returns True if any replacement was made.
+            """
+            for key, val in fields.items():
+                if not key or not val:
+                    continue
+                if key.lower() not in paragraph.text.lower():
+                    continue
+
+                original_text = paragraph.text
+                replaced = False
+
+                # Determine what text pattern to replace
+                # 1. Angle-bracket placeholders: <...>
+                angle_match = re.search(r'<[^>]+>', paragraph.text)
+                if angle_match:
+                    replaced = _replace_in_paragraph_runs(
+                        paragraph, angle_match.group(0), str(val)
+                    )
+                # 2. Underscore blanks: ___
+                elif re.search(r'_{3,}', paragraph.text):
+                    uscore_match = re.search(r'_{3,}', paragraph.text)
+                    if uscore_match:
+                        replaced = _replace_in_paragraph_runs(
+                            paragraph, uscore_match.group(0), str(val)
+                        )
+                # 3. Bracket placeholders: [...]
+                elif re.search(r'\[[^\]]+\]', paragraph.text):
+                    bracket_match = re.search(r'\[[^\]]+\]', paragraph.text)
+                    if bracket_match:
+                        replaced = _replace_in_paragraph_runs(
+                            paragraph, bracket_match.group(0), str(val)
+                        )
+                # 4. Colon-ending labels: "Label:"
+                elif ":" in paragraph.text and paragraph.text.strip().endswith(":"):
+                    # Append value after the colon — add via last run to keep format
+                    runs = list(paragraph.runs)
+                    if runs:
+                        runs[-1].text = runs[-1].text + " " + str(val)
+                        replaced = True
+                    else:
+                        paragraph.text = paragraph.text + " " + str(val)
+                        replaced = True
+                # 5. Exact match of the field key with paragraph text
+                elif key.lower() == paragraph.text.strip().lower():
+                    replaced = _replace_in_paragraph_runs(
+                        paragraph, paragraph.text.strip(), str(val)
+                    )
+
+                if replaced:
+                    return True
+            return False
+
+        def _set_cell_text_preserve_format(cell, new_value):
+            """
+            Replace the text content of a table cell while preserving
+            the cell's existing paragraph and run formatting.
+            """
+            try:
+                paragraphs = cell.text_frame.paragraphs
+                if paragraphs:
+                    first_para = paragraphs[0]
+                    runs = list(first_para.runs)
+                    if runs:
+                        # Put all new text into the first run (preserving its formatting)
+                        runs[0].text = str(new_value)
+                        # Clear remaining runs but keep them for structure
+                        for r in runs[1:]:
+                            r.text = ""
+                    else:
+                        # No runs exist — add one that inherits paragraph default formatting
+                        from pptx.oxml.ns import qn
+                        new_r = etree.SubElement(first_para._p, qn('a:r'))
+                        # Copy paragraph default run properties if they exist
+                        def_rpr = first_para._p.find(qn('a:pPr'))
+                        if def_rpr is not None:
+                            inner_rpr = def_rpr.find(qn('a:defRPr'))
+                            if inner_rpr is not None:
+                                new_rpr = deepcopy(inner_rpr)
+                                new_rpr.tag = qn('a:rPr')
+                                new_r.insert(0, new_rpr)
+                        t_elem = etree.SubElement(new_r, qn('a:t'))
+                        t_elem.text = str(new_value)
+                    # Clear any additional paragraphs
+                    for p in paragraphs[1:]:
+                        for r in p.runs:
+                            r.text = ""
+                else:
+                    cell.text = str(new_value)
+            except Exception:
+                cell.text = str(new_value)
+
         try:
             cleaned_text = converted_text.strip()
             if cleaned_text.startswith("```json"):
                 cleaned_text = cleaned_text[7:]
             elif cleaned_text.startswith("```"):
                 cleaned_text = cleaned_text[3:]
-            import re
             json_match = re.search(r'\{.*\}', cleaned_text, re.DOTALL)
             if json_match:
                 cleaned_text = json_match.group(0)
@@ -448,32 +625,7 @@ def generate_output_file(converted_text: str, target_format: str, source_stem: s
                 for shape in slide.shapes:
                     if hasattr(shape, "text_frame") and shape.text_frame:
                         for p in shape.text_frame.paragraphs:
-                            for key, val in fields.items():
-                                if key and key.lower() in p.text.lower() and val:
-                                    original_text = p.text
-                                    new_text = original_text
-                                    
-                                    # Replace specific placeholders like <__>, <XX%>, <PRODUCT NAME>
-                                    if re.search(r'<[^>]+>', p.text):
-                                        new_text = re.sub(r'<[^>]+>', str(val), p.text, count=1)
-                                    # Handle underscore blanks
-                                    elif re.search(r'_{3,}', p.text):
-                                        new_text = re.sub(r'_{3,}', str(val), p.text, count=1)
-                                    # Handle colons
-                                    elif ":" in p.text and p.text.strip().endswith(":"):
-                                        new_text = p.text + " " + str(val)
-                                    # Exact match
-                                    elif key.lower() == p.text.strip().lower():
-                                        new_text = p.text.replace(p.text.strip(), str(val))
-                                    
-                                    if new_text != original_text:
-                                        if p.runs:
-                                            p.runs[0].text = new_text
-                                            for idx in range(1, len(p.runs)):
-                                                p.runs[idx].text = ""
-                                        else:
-                                            p.text = new_text
-                                        break
+                            _replace_text_in_paragraph(p, fields)
                                         
                     # Map tables (populate existing rows only, as python-pptx doesn't support adding rows natively)
                     if shape.has_table:
@@ -491,7 +643,7 @@ def generate_output_file(converted_text: str, target_format: str, source_stem: s
                                             row_cells = shape.table.rows[target_row_idx].cells
                                             for col_idx, cell_val in enumerate(row_data):
                                                 if col_idx < len(row_cells):
-                                                    row_cells[col_idx].text = str(cell_val)
+                                                    _set_cell_text_preserve_format(row_cells[col_idx], cell_val)
                                     break
                                     
             charts_data = data.get("charts", [])
@@ -536,7 +688,9 @@ def generate_output_file(converted_text: str, target_format: str, source_stem: s
 @app.post("/preview_mapping")
 async def preview_mapping(
     source_files: list[UploadFile] = File(...),
-    reference_file: UploadFile = File(...)
+    reference_file: UploadFile = File(...),
+    provider: str = Form(default=None),
+    model: str = Form(default=None)
 ):
     if not source_files:
         raise HTTPException(status_code=400, detail="At least one source file is required")
@@ -582,8 +736,9 @@ async def preview_mapping(
                 source_text=combined_source_text,
                 reference_text=reference_text,
                 target_format=target_format,
-                provider=global_settings.get("provider", "groq"),
-                manifest_slots=manifest_slots
+                provider=provider or global_settings.get("provider", "groq"),
+                manifest_slots=manifest_slots,
+                model=model or global_settings.get("model")
             )
         )
 
@@ -750,7 +905,8 @@ async def convert_document(
     source_files: list[UploadFile] = File(...),
     reference_file: UploadFile = File(...),
     resolutions: str = Form(default=None),
-    provider: str = Form(default=None)
+    provider: str = Form(default=None),
+    model: str = Form(default=None)
 ):
     start_time = time.perf_counter()
 
@@ -815,7 +971,9 @@ async def convert_document(
             target_format,
             resolutions_dict,
             provider,
-            manifest_slots
+            manifest_slots,
+            None,  # source_tags
+            model or global_settings.get("model")
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Conversion failed: {exc}") from exc
@@ -828,7 +986,7 @@ async def convert_document(
     )
 
     try:
-        qa = build_rag(combined_source_text, source_name=", ".join(source_filenames))
+        qa = build_rag(combined_source_text, source_name=", ".join(source_filenames), provider=provider, model=model or global_settings.get("model"))
         rag_sessions[", ".join(source_filenames)] = qa
     except Exception:
         pass
@@ -899,19 +1057,98 @@ async def download_file_by_name(filename: str):
     )
 
 @app.post("/chat/upload")
-async def upload_chat_document(file: UploadFile = File(...)):
+async def upload_chat_document(
+    file: UploadFile = File(...),
+    provider: str = Form(default=None),
+    model: str = Form(default=None)
+):
     file_path = UPLOAD_DIR / file.filename
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     try:
         text = parse_document(str(file_path))
-        provider = global_settings.get("provider", "groq").lower()
-        qa = build_rag(text, source_name=file.filename, provider=provider)
+        resolved_provider = provider.lower() if provider else global_settings.get("provider", "groq").lower()
+        resolved_model = model or global_settings.get("model")
+        qa = build_rag(text, source_name=file.filename, provider=resolved_provider, model=resolved_model)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     rag_sessions[file.filename] = qa
     chat_documents[file.filename] = text
     return {"message": "Document indexed for chat", "filename": file.filename}
+
+@app.post("/chat/suggestions")
+async def chat_suggestions(payload: dict):
+    raw_filenames = payload.get("filenames", []) or []
+    provider = payload.get("provider")
+    model = payload.get("model")
+    
+    if not provider:
+        provider = global_settings.get("provider", "groq").lower()
+    else:
+        provider = provider.lower()
+
+    filenames = []
+    for f in raw_filenames:
+        if isinstance(f, str) and "," in f:
+            for part in f.split(","):
+                part = part.strip()
+                if part:
+                    filenames.append(part)
+        elif f:
+            filenames.append(f)
+    filenames = list(dict.fromkeys(filenames))
+
+    default_suggestions = [
+        "Summarize the key findings from these documents.",
+        "What are the main risks mentioned?",
+        "Can you extract the numerical data into a list?",
+        "What are the next steps or recommendations?"
+    ]
+
+    if not filenames:
+        return {"suggestions": default_suggestions}
+
+    text = ""
+    for fn in filenames:
+        if fn in chat_documents:
+            text += chat_documents[fn][:3000] + "\n\n"
+        else:
+            for base_dir in [UPLOAD_DIR, Path("outputs")]:
+                path = base_dir / fn
+                if path.exists():
+                    try:
+                        parsed_text = parse_document(str(path))
+                        chat_documents[fn] = parsed_text
+                        text += parsed_text[:3000] + "\n\n"
+                        break
+                    except Exception:
+                        pass
+
+    if not text.strip():
+        return {"suggestions": default_suggestions}
+
+    from app.agents.document_agents import get_agents
+    agents = get_agents(provider, model or global_settings.get("model"))
+    llm = agents[0].llm
+    
+    prompt = f"You are a helpful assistant. Based on the following document excerpt, generate exactly 4 short, specific questions (under 10 words each) a user could ask about this document's content. Return ONLY a valid JSON array of 4 strings, with no markdown formatting or extra text.\n\nDocument Excerpt:\n{text}"
+    
+    try:
+        import json
+        import re
+        result = llm.call(messages=prompt)
+        match = re.search(r'\[.*\]', str(result), re.DOTALL)
+        if match:
+            sugs = json.loads(match.group(0))
+            if isinstance(sugs, list) and len(sugs) == 4:
+                return {"suggestions": sugs}
+        else:
+            print(f"[chat_suggestions] LLM output did not match JSON array: {result}")
+    except Exception as e:
+        print(f"[chat_suggestions] Error calling LLM: {e}")
+        pass
+        
+    return {"suggestions": default_suggestions}
 
 @app.post("/chat")
 async def chat(payload: dict):
@@ -919,6 +1156,7 @@ async def chat(payload: dict):
     question = payload.get("question", "")
     history = payload.get("history", []) or []
     provider = payload.get("provider")
+    model = payload.get("model")
     
     if not provider:
         provider = global_settings.get("provider", "groq").lower()
@@ -959,7 +1197,7 @@ async def chat(payload: dict):
                         continue
         if sources:
             try:
-                qa = build_multi_rag(sources, provider=provider)
+                qa = build_multi_rag(sources, provider=provider, model=model or global_settings.get("model"))
                 rag_sessions[rag_key] = qa
             except Exception as e:
                 return {"answer": f"Failed to index documents: {str(e)}", "citations": []}
@@ -969,7 +1207,7 @@ async def chat(payload: dict):
             path = UPLOAD_DIR / filenames[0]
             if path.exists():
                 text = parse_document(str(path))
-                qa = build_rag(text, source_name=filenames[0], provider=provider)
+                qa = build_rag(text, source_name=filenames[0], provider=provider, model=model or global_settings.get("model"))
                 rag_sessions[rag_key] = qa
         except:
             pass

@@ -1,10 +1,10 @@
 import json
 
-def run_conversion(source_text, reference_text, target_format="txt", resolutions=None, provider="groq", manifest_slots=None, source_tags=None):
+def run_conversion(source_text, reference_text, target_format="txt", resolutions=None, provider="groq", manifest_slots=None, source_tags=None, model=None):
     try:
         from crewai import Crew, Task
         from app.agents.document_agents import get_agents
-        extractor_agent, normalizer_agent, formatter_agent, validator_agent = get_agents(provider)
+        extractor_agent, normalizer_agent, formatter_agent, validator_agent = get_agents(provider, model=model)
     except Exception as e:
         import traceback
         with open("error.log", "w") as f:

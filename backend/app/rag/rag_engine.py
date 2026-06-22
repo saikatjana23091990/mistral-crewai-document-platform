@@ -15,7 +15,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 AWS_BEARER_TOKEN_BEDROCK = os.getenv("AWS_BEARER_TOKEN_BEDROCK", "").strip()
-BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0")
+BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-sonnet-4-5-20250929-v1:0")
 
 try:
     from app.tools.agent_tools import execute_tool
@@ -273,7 +273,7 @@ class AgenticMemoryRAG:
                     messages.append({"role": "user", "content": user_content})
                     
                     response = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
+                        model=self.model,
                         messages=messages
                     )
                     return response.choices[0].message.content
@@ -294,7 +294,7 @@ class AgenticMemoryRAG:
                     messages.append({"role": "user", "content": user_content})
                     
                     response = client.chat.completions.create(
-                        model="meta-llama/llama-3.1-8b-instruct:free",
+                        model=self.model,
                         messages=messages
                     )
                     return response.choices[0].message.content
@@ -396,32 +396,35 @@ def _chunk_text(text, source_name="uploaded_document", chunk_size=1200):
     return chunks
 
 
-def _build_agentic_rag(docs, provider="mistral"):
+def _build_agentic_rag(docs, provider="mistral", model=None):
     if not docs:
         docs = [SimpleNamespace(page_content="", metadata={"source": "uploaded_document", "chunk_id": 1})]
 
     retriever = KeywordRetriever(docs)
     llm_client = None
-    model = "mistral-large-latest"
+    selected_model = model or "mistral-large-latest"
 
     if provider == "mistral" and MISTRAL_API_KEY:
         try:
             from mistralai import Mistral
             llm_client = Mistral(api_key=MISTRAL_API_KEY)
-            model = os.getenv("MODEL_NAME", "mistral-large-latest")
+            selected_model = model or os.getenv("MODEL_NAME", "mistral-large-latest")
         except:
             llm_client = None
     elif provider == "gemini" and GEMINI_API_KEY:
         llm_client = "gemini"
-        model = "gemini-1.5-flash"
+        selected_model = model or "gemini-1.5-flash"
     elif provider == "bedrock":
         llm_client = "bedrock"
-        model = BEDROCK_MODEL_ID
+        selected_model = model or BEDROCK_MODEL_ID
     elif provider == "openrouter":
         llm_client = "openrouter"
-        model = "meta-llama/llama-3.1-8b-instruct:free"
+        selected_model = model or "meta-llama/llama-3.3-70b-instruct:free"
+    elif provider == "groq":
+        llm_client = "groq"
+        selected_model = model or "llama-3.1-8b-instant"
 
-    return AgenticMemoryRAG(retriever, llm_client, provider, model)
+    return AgenticMemoryRAG(retriever, llm_client, provider, selected_model)
 
 
 class KeywordRetriever:
@@ -437,15 +440,15 @@ class KeywordRetriever:
         return [d for _, d in scored[:7]] or self.docs[:7]
 
 
-def build_rag(text, source_name="uploaded_document", provider="mistral"):
+def build_rag(text, source_name="uploaded_document", provider="mistral", model=None):
     docs = _chunk_text(text, source_name=source_name)
-    return _build_agentic_rag(docs, provider=provider)
+    return _build_agentic_rag(docs, provider=provider, model=model)
 
 
-def build_multi_rag(sources, provider="mistral"):
+def build_multi_rag(sources, provider="mistral", model=None):
     docs = []
     for item in sources or []:
         text = (item or {}).get("text", "")
         source_name = (item or {}).get("source_name", "uploaded_document")
         docs.extend(_chunk_text(text, source_name=source_name))
-    return _build_agentic_rag(docs, provider=provider)
+    return _build_agentic_rag(docs, provider=provider, model=model)

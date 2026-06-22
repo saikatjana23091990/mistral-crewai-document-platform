@@ -31,19 +31,20 @@ const PROVIDERS = [
     id: 'openrouter',
     name: 'OpenRouter',
     logo: 'https://openrouter.ai/favicon.ico',
-    description: 'Unified gateway to multiple models through a single API.',
-    badge: '200+ models',
-    recommendedTag: 'Most Flexible',
+    description: 'Free access to top open-weight models via the :free tier.',
+    badge: 'Free Tier',
+    recommendedTag: 'Best Free Selection',
     models: [
-      { id: 'openai/gpt-4o', name: 'openai/gpt-4o', context: '128K Context', speed: 'Balanced', cost: 'Medium', tools: true },
-      { id: 'anthropic/claude-sonnet-4', name: 'anthropic/claude-sonnet-4', context: '200K Context', speed: 'Balanced', cost: 'Medium', tools: true },
-      { id: 'google/gemini-2.5-pro', name: 'google/gemini-2.5-pro', context: '1M Context', speed: 'Balanced', cost: 'Medium', tools: true },
-      { id: 'deepseek/deepseek-r1', name: 'deepseek/deepseek-r1', context: '128K Context', speed: 'Slow (Deep)', cost: 'Low', tools: true },
-      { id: 'meta-llama/llama-4-maverick', name: 'meta-llama/llama-4-maverick', context: '128K Context', speed: 'Fast', cost: 'Low', tools: false }
+      { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', context: '128K Context', speed: 'Balanced', cost: 'Free', tools: true },
+      { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free)', context: '64K Context', speed: 'Slow (Deep)', cost: 'Free', tools: true },
+      { id: 'qwen/qwen3-32b:free', name: 'Qwen3 32B (Free)', context: '32K Context', speed: 'Fast', cost: 'Free', tools: true },
+      { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B (Free)', context: '128K Context', speed: 'Balanced', cost: 'Free', tools: false },
+      { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'Nemotron 3 Super 120B (Free)', context: '32K Context', speed: 'Balanced', cost: 'Free', tools: false },
+      { id: 'meta-llama/llama-3.1-8b-instruct:free', name: 'Llama 3.1 8B (Free)', context: '128K Context', speed: 'Lightning', cost: 'Free', tools: false }
     ],
     capabilities: [
+      { label: 'No Cost', icon: '🆓' },
       { label: 'Large Context', icon: '📚' },
-      { label: 'Tool Calling', icon: '🔧' },
       { label: 'Streaming', icon: '🌊' }
     ]
   },
@@ -51,70 +52,36 @@ const PROVIDERS = [
     id: 'groq',
     name: 'GroqCloud',
     logo: '/groq-logo.svg',
-    description: 'Ultra-fast inference for low-latency document interactions.',
-    badge: 'LPU Speed',
-    recommendedTag: 'Fastest Responses',
+    description: 'Ultra-fast free inference — best for smaller/faster models.',
+    badge: 'Free LPU Speed',
+    recommendedTag: 'Fastest Free',
     models: [
-      { id: 'llama-4-scout', name: 'llama-4-scout', context: '128K Context', speed: 'Lightning', cost: 'Free/Low', tools: true },
-      { id: 'llama-4-maverick', name: 'llama-4-maverick', context: '128K Context', speed: 'Lightning', cost: 'Low', tools: true },
-      { id: 'deepseek-r1-distill', name: 'deepseek-r1-distill', context: '32K Context', speed: 'Fast', cost: 'Low', tools: true }
+      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant', context: '128K Context', speed: 'Lightning', cost: 'Free (30K TPM)', tools: true },
+      { id: 'llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick', context: '128K Context', speed: 'Lightning', cost: 'Free (30K TPM)', tools: true },
+      { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Distill 70B', context: '128K Context', speed: 'Fast', cost: 'Free (30K TPM)', tools: true },
+      { id: 'gemma2-9b-it', name: 'Gemma 2 9B', context: '8K Context', speed: 'Lightning', cost: 'Free (30K TPM)', tools: false }
     ],
     capabilities: [
+      { label: 'No Cost', icon: '🆓' },
       { label: 'Fast Inference', icon: '⚡' },
-      { label: 'Tool Calling', icon: '🔧' },
       { label: 'Streaming', icon: '🌊' }
-    ]
-  },
-  {
-    id: 'mistral',
-    name: 'Mistral AI',
-    logo: 'https://mistral.ai/favicon.ico',
-    description: 'High-quality open models optimized for enterprise use.',
-    badge: 'Enterprise',
-    recommendedTag: 'Cost Efficient',
-    models: [
-      { id: 'mistral-large-latest', name: 'mistral-large-latest', context: '128K Context', speed: 'Balanced', cost: 'Medium', tools: true },
-      { id: 'mistral-medium-latest', name: 'mistral-medium-latest', context: '32K Context', speed: 'Fast', cost: 'Medium', tools: true },
-      { id: 'ministral-8b', name: 'ministral-8b', context: '128K Context', speed: 'Fast', cost: 'Low', tools: false }
-    ],
-    capabilities: [
-      { label: 'Large Context', icon: '📚' },
-      { label: 'Enterprise Security', icon: '🔒' }
-    ]
-  },
-  {
-    id: 'gemini',
-    name: 'Google Gemini',
-    logo: 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
-    description: 'Large context windows for complex document understanding.',
-    badge: '1M+ Context',
-    recommendedTag: 'Best Context Length',
-    models: [
-      { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro', context: '1M Context', speed: 'Balanced', cost: 'Medium', tools: true },
-      { id: 'gemini-2.5-flash', name: 'gemini-2.5-flash', context: '1M Context', speed: 'Fast', cost: 'Low', tools: true }
-    ],
-    capabilities: [
-      { label: 'Large Context', icon: '📚' },
-      { label: 'Multimodal', icon: '🖼️' },
-      { label: 'Tool Calling', icon: '🔧' }
     ]
   },
   {
     id: 'bedrock',
     name: 'AWS Bedrock',
-    logo: '/bedrock-logo.svg',
-    description: 'Access foundation models through your AWS environment.',
-    badge: 'Secure VPC',
-    recommendedTag: 'Enterprise Ready',
+    logo: 'https://aws.amazon.com/favicon.ico',
+    description: 'Enterprise AI via AWS Bedrock (Claude 4.5).',
+    badge: 'Enterprise',
+    recommendedTag: 'Highly capable',
     models: [
-      { id: 'anthropic.claude-sonnet-4', name: 'anthropic.claude-sonnet-4', context: '200K Context', speed: 'Balanced', cost: 'Medium', tools: true },
-      { id: 'anthropic.claude-opus-4', name: 'anthropic.claude-opus-4', context: '200K Context', speed: 'Slow', cost: 'High', tools: true },
-      { id: 'amazon.nova-pro', name: 'amazon.nova-pro', context: '128K Context', speed: 'Balanced', cost: 'Medium', tools: true },
-      { id: 'meta.llama3-70b-instruct', name: 'meta.llama3-70b-instruct', context: '8K Context', speed: 'Fast', cost: 'Low', tools: true }
+      { id: 'anthropic.claude-opus-4-5-20251101-v1:0', name: 'Claude 4.5 Opus', context: '200K Context', speed: 'Balanced', cost: 'Paid', tools: true },
+      { id: 'anthropic.claude-sonnet-4-5-20250929-v1:0', name: 'Claude 4.5 Sonnet', context: '200K Context', speed: 'Fast', cost: 'Paid', tools: true }
     ],
     capabilities: [
-      { label: 'Enterprise Security', icon: '🔒' },
-      { label: 'Tool Calling', icon: '🔧' }
+      { label: 'Secure', icon: '🔒' },
+      { label: 'Large Context', icon: '📚' },
+      { label: 'Streaming', icon: '🌊' }
     ]
   }
 ];
@@ -132,7 +99,7 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({
     provider: 'groq',
-    model: 'llama-4-maverick',
+    model: 'llama-3.1-8b-instant',
     temperature: 0.5,
     reasoningDepth: 'fast',
     memoryEnabled: true,
@@ -516,11 +483,13 @@ const Settings = () => {
                   { id: 'purple', label: 'Purple', desc: 'Modern, professional and trustworthy.', hex: '#7C3AED' },
                   { id: 'pink', label: 'Pink', desc: 'Energetic, friendly and vibrant.', hex: '#EC4899' },
                   { id: 'yellow', label: 'Yellow', desc: 'Bright, optimistic and warm.', hex: '#EAB308' },
-                  { id: 'orange', label: 'Orange', desc: 'Bold, creative and confident.', hex: '#F97316' }
+                  { id: 'orange', label: 'Orange', desc: 'Bold, creative and confident.', hex: '#F97316' },
+                  { id: 'green', label: 'Green', desc: 'Fresh, balanced and calm.', hex: '#10B981' },
+                  { id: 'indigo', label: 'Indigo', desc: 'Deep, reliable and elegant.', hex: '#4F46E5' }
                 ].map(opt => {
                   const isSelected = themeColor === opt.id;
                   return (
-                    <Grid item xs={12} sm={6} md={3} key={opt.id}>
+                    <Grid item xs={12} sm={4} md={2} key={opt.id}>
                       <Box
                         onClick={() => setThemeColor(opt.id)}
                         sx={{
@@ -528,7 +497,8 @@ const Settings = () => {
                           borderColor: isSelected ? 'primary.main' : 'divider',
                           bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.02) : 'transparent',
                           cursor: 'pointer', position: 'relative',
-                          display: 'flex', gap: 2, alignItems: 'center'
+                          display: 'flex', flexDirection: 'column', gap: 1.5, alignItems: 'center',
+                          textAlign: 'center', height: '100%', minHeight: 140
                         }}
                       >
                         {isSelected && <CheckCircleOutlineIcon sx={{ position: 'absolute', top: 8, right: 8, color: 'primary.main', fontSize: 16 }} />}
@@ -544,7 +514,7 @@ const Settings = () => {
 
                         <Box>
                           <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary' }}>{opt.label}</Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.1, display: 'block' }}>{opt.desc}</Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2, display: 'block', mt: 0.5 }}>{opt.desc}</Typography>
                         </Box>
                       </Box>
                     </Grid>
