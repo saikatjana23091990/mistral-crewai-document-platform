@@ -106,7 +106,9 @@ const Settings = () => {
     streamResponses: true,
     includeCitations: true,
     explainConflicts: true,
-    showConfidenceScores: true
+    showConfidenceScores: true,
+    defaultTargetLanguage: 'Spanish',
+    defaultTranslationMode: 'Business'
   });
 
   useEffect(() => {
@@ -469,7 +471,50 @@ const Settings = () => {
           </Grid>
         </Grid>
 
-        {/* Card 8 - Appearance */}
+        {/* Translation Defaults */}
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 3, borderRadius: 3, height: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>8. Translation Defaults</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Configure default settings for document translation.
+              </Typography>
+              
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Default Target Language</InputLabel>
+                    <Select 
+                      value={settings.defaultTargetLanguage || 'Spanish'} 
+                      label="Default Target Language" 
+                      onChange={(e) => updateSetting('defaultTargetLanguage', e.target.value)}
+                    >
+                      {['English', 'French', 'German', 'Spanish', 'Italian', 'Portuguese', 'Chinese', 'Japanese', 'Korean', 'Arabic', 'Hindi', 'Bengali'].map(lang => (
+                        <MenuItem key={lang} value={lang}>{lang}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Default Translation Mode</InputLabel>
+                    <Select 
+                      value={settings.defaultTranslationMode || 'Business'} 
+                      label="Default Translation Mode" 
+                      onChange={(e) => updateSetting('defaultTranslationMode', e.target.value)}
+                    >
+                      <MenuItem value="Literal">Literal (Regulatory / Legal)</MenuItem>
+                      <MenuItem value="Business">Business (Reports / Presentations)</MenuItem>
+                      <MenuItem value="Localized">Localized (Marketing / Training)</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* Appearance */}
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <Paper sx={{ p: 3, borderRadius: 3, height: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>

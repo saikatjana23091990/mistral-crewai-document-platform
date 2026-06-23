@@ -234,7 +234,7 @@ const ConvertDocument = () => {
     const isCompleted = currentStep > index
     return (
       <Box sx={{
-        width: 32, height: 32, borderRadius: '50%',
+        width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
         bgcolor: isActive || isCompleted ? 'primary.main' : 'background.paper',
         color: isActive || isCompleted ? 'white' : 'text.disabled',
         display: 'flex', alignItems: 'center', justifyContent: 'center',

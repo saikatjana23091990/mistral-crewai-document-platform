@@ -16,6 +16,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from docx import Document
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 
@@ -27,6 +28,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
+
 UPLOAD_DIR = Path("uploads")
 OUTPUT_DIR = Path("outputs")
 STATS_FILE = Path("stats.json")
@@ -35,6 +38,10 @@ SETTINGS_FILE = Path("settings.json")
 
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
+
+TRANSLATION_STATS_FILE = Path("translation_stats.json")
+TRANSLATION_HISTORY_FILE = Path("translation_history.json")
+TRANSLATION_GLOSSARY_FILE = Path("translation_glossary.json")
 
 rag_sessions = {}
 chat_documents = {}
@@ -57,8 +64,20 @@ DEFAULT_SETTINGS = {
     "streamResponses": True,
     "includeCitations": True,
     "explainConflicts": True,
-    "showConfidenceScores": True
+    "showConfidenceScores": True,
+    "defaultTranslationMode": "Business",
+    "defaultTargetLanguage": "Spanish"
 }
+
+DEFAULT_TRANSLATION_STATS = {
+    "total_translations": 0,
+    "successful_translations": 0,
+    "average_quality": 0.0,
+    "languages_supported": 12,
+    "documents_translated": 0
+}
+DEFAULT_TRANSLATION_HISTORY = []
+DEFAULT_TRANSLATION_GLOSSARY = []
 
 def load_stats():
     if STATS_FILE.exists():
@@ -98,6 +117,29 @@ stats = load_stats()
 conversion_history = load_history()
 global_settings = load_settings_data()
 
+def load_json(path, default):
+    if path.exists():
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(default, dict):
+                    return {**default, **data}
+                return data if isinstance(data, list) else default.copy()
+        except:
+            return default.copy()
+    return default.copy()
+
+def save_json(path, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f)
+
+translation_stats = load_json(TRANSLATION_STATS_FILE, DEFAULT_TRANSLATION_STATS)
+translation_history = load_json(TRANSLATION_HISTORY_FILE, DEFAULT_TRANSLATION_HISTORY)
+translation_glossary = load_json(TRANSLATION_GLOSSARY_FILE, DEFAULT_TRANSLATION_GLOSSARY)
+
+# In-memory job state tracking for websockets
+translation_jobs = {}
+
 @app.middleware("http")
 async def count_api_calls(request: Request, call_next):
     response = await call_next(request)
@@ -132,6 +174,120 @@ async def update_settings(request: Request):
         return {"message": "Settings updated", "settings": global_settings}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+from fastapi import BackgroundTasks, WebSocket, WebSocketDisconnect
+from app.services.translation_service import run_translation_background
+import uuid
+import asyncio
+
+@app.get("/translate/stats")
+def get_translation_stats():
+    return translation_stats
+
+@app.get("/translate/history")
+def get_translation_history():
+    return {"records": translation_history}
+
+@app.post("/translate/upload")
+async def translate_upload(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    targetLanguage: str = Form("Spanish"),
+    mode: str = Form("Business"),
+    provider: str = Form(None),
+    model: str = Form(None)
+):
+    source_path = UPLOAD_DIR / file.filename
+    with open(source_path, "wb") as buffer:
+        import shutil
+        shutil.copyfileobj(file.file, buffer)
+        
+    job_id = str(uuid.uuid4())
+    translation_jobs[job_id] = {
+        "status": "Upload Complete",
+        "progress": 10,
+        "filename": file.filename,
+        "targetLanguage": targetLanguage,
+        "mode": mode,
+        "updates": []
+    }
+    
+    prov = provider or global_settings.get("provider", "mistral")
+    mod = model or global_settings.get("model")
+    
+    def send_progress_update(j_id, msg, final_result=None):
+        if j_id in translation_jobs:
+            translation_jobs[j_id]["status"] = msg
+            translation_jobs[j_id]["updates"].append(msg)
+            
+            if msg == "Detecting Language...": translation_jobs[j_id]["progress"] = 30
+            elif msg == "Translating...": translation_jobs[j_id]["progress"] = 60
+            elif msg == "Formatting Reconstructed...": translation_jobs[j_id]["progress"] = 80
+            elif msg == "Generating Reports...": translation_jobs[j_id]["progress"] = 90
+            elif msg == "Completed": translation_jobs[j_id]["progress"] = 100
+            
+            if final_result:
+                translation_jobs[j_id]["result"] = final_result
+                if final_result.get("status") == "Completed":
+                    # Update stats
+                    translation_stats["total_translations"] += 1
+                    translation_stats["successful_translations"] += 1
+                    translation_stats["documents_translated"] += 1
+                    translation_stats["average_quality"] = (translation_stats["average_quality"] * (translation_stats["total_translations"] - 1) + final_result.get("quality_score", 100)) / translation_stats["total_translations"]
+                    save_json(TRANSLATION_STATS_FILE, translation_stats)
+                    
+                    # Add to history
+                    record = {
+                        "id": j_id,
+                        "filename": file.filename,
+                        "source_language": "English",
+                        "target_language": targetLanguage,
+                        "translation_mode": mode,
+                        "quality_score": final_result.get("quality_score"),
+                        "corrections_applied": final_result.get("corrections_applied"),
+                        "date": datetime.now(timezone.utc).isoformat(),
+                        "status": "Completed",
+                        "translated_path": final_result.get("translated_path")
+                    }
+                    translation_history.insert(0, record)
+                    save_json(TRANSLATION_HISTORY_FILE, translation_history)
+                elif final_result.get("status") == "Failed":
+                    translation_stats["total_translations"] += 1
+                    save_json(TRANSLATION_STATS_FILE, translation_stats)
+    
+    import threading
+    thread = threading.Thread(
+        target=run_translation_background,
+        args=(job_id, str(source_path), targetLanguage, mode, prov, mod, globals(), send_progress_update)
+    )
+    thread.start()
+    
+    return {"jobId": job_id, "status": "Started"}
+
+@app.websocket("/ws/translation/{job_id}")
+async def translation_websocket(websocket: WebSocket, job_id: str):
+    await websocket.accept()
+    try:
+        last_progress = -1
+        while True:
+            if job_id not in translation_jobs:
+                await websocket.send_json({"error": "Job not found"})
+                break
+                
+            job = translation_jobs[job_id]
+            if job["progress"] != last_progress:
+                await websocket.send_json(job)
+                last_progress = job["progress"]
+                
+            if job["status"] in ["Completed", "Failed"]:
+                await websocket.send_json(job)
+                break
+                
+            await asyncio.sleep(1)
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        print("WS error:", e)
 
 def get_target_format(reference_filename: str) -> str:
     """Determine target output format from reference file extension."""

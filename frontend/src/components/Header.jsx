@@ -14,6 +14,7 @@ import DocumentScannerIcon from '@mui/icons-material/DocumentScanner'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
+import TranslateIcon from '@mui/icons-material/Translate'
 import { useThemeContext } from '../ThemeContext'
 
 const Header = ({ currentPage, setCurrentPage }) => {
@@ -22,6 +23,7 @@ const Header = ({ currentPage, setCurrentPage }) => {
 
   const navItems = [
     { id: 'convert', label: 'Convert Document', icon: <DocumentScannerIcon fontSize="small" /> },
+    { id: 'translate', label: 'Translate Document', icon: <TranslateIcon fontSize="small" /> },
     { id: 'chat', label: 'Chat with Document', icon: <ChatBubbleOutlineIcon fontSize="small" /> },
     { id: 'stats_results', label: 'Stats & Results', icon: <AssessmentOutlinedIcon fontSize="small" /> },
     { id: 'settings', label: 'Settings', icon: <SettingsOutlinedIcon fontSize="small" /> },

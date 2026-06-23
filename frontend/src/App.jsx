@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Box, Container } from '@mui/material'
 import Header from './components/Header'
 import ConvertDocument from './components/ConvertDocument'
+import TranslateDocument from './components/TranslateDocument'
 import ChatWithDocument from './components/ChatWithDocument'
 import StatsResults from './components/StatsResults'
 import Settings from './components/Settings'
@@ -13,6 +14,8 @@ function App() {
     switch (currentPage) {
       case 'convert':
         return <ConvertDocument />
+      case 'translate':
+        return <TranslateDocument />
       case 'chat':
         return <ChatWithDocument />
       case 'stats_results':
