@@ -24,3 +24,4 @@ boto3
 httpx
 python-pptx
 openai
+fpdf2
