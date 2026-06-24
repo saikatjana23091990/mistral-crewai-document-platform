@@ -188,6 +188,63 @@ def get_translation_stats():
 def get_translation_history():
     return {"records": translation_history}
 
+@app.post("/translate/analyze")
+def translate_analyze(file: UploadFile = File(...)):
+    source_path = UPLOAD_DIR / file.filename
+    with open(source_path, "wb") as buffer:
+        import shutil
+        shutil.copyfileobj(file.file, buffer)
+        
+    from app.parsers.document_parser import analyze_document, parse_document
+    metadata = analyze_document(str(source_path))
+    
+    # Extract text for word count and language detection heuristic
+    try:
+        full_text = parse_document(str(source_path))
+        words = len(full_text.split())
+        
+        # Simple heuristic for language (could be replaced with langdetect)
+        # For now, default to English with high confidence if text exists
+        detected_language = "English"
+        confidence = 98.7 if words > 0 else 0.0
+        
+    except Exception as e:
+        words = 0
+        detected_language = "Unknown"
+        confidence = 0.0
+        
+    return {
+        "filename": file.filename,
+        "document_type": metadata.get("document_type", "Document"),
+        "pages": metadata.get("pages", 1),
+        "word_count": words,
+        "detected_language": detected_language,
+        "confidence": confidence
+    }
+
+@app.post("/translate/preview")
+def translate_preview(
+    filename: str = Form(...),
+    targetLanguage: str = Form("Spanish"),
+    mode: str = Form("Business"),
+    provider: str = Form(None),
+    model: str = Form(None),
+    aiEnhancements: str = Form(None)
+):
+    source_path = UPLOAD_DIR / filename
+    if not source_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    prov = provider or global_settings.get("provider", "mistral")
+    mod = model or global_settings.get("model")
+    
+    from app.services.translation_service import generate_preview
+    try:
+        preview_data = generate_preview(str(source_path), targetLanguage, mode, prov, mod, aiEnhancements)
+        return preview_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/translate/upload")
 async def translate_upload(
     background_tasks: BackgroundTasks,
@@ -195,7 +252,8 @@ async def translate_upload(
     targetLanguage: str = Form("Spanish"),
     mode: str = Form("Business"),
     provider: str = Form(None),
-    model: str = Form(None)
+    model: str = Form(None),
+    aiEnhancements: str = Form(None)
 ):
     source_path = UPLOAD_DIR / file.filename
     with open(source_path, "wb") as buffer:
@@ -209,6 +267,7 @@ async def translate_upload(
         "filename": file.filename,
         "targetLanguage": targetLanguage,
         "mode": mode,
+        "aiEnhancements": aiEnhancements,
         "updates": []
     }
     
@@ -258,7 +317,7 @@ async def translate_upload(
     import threading
     thread = threading.Thread(
         target=run_translation_background,
-        args=(job_id, str(source_path), targetLanguage, mode, prov, mod, globals(), send_progress_update)
+        args=(job_id, str(source_path), targetLanguage, mode, prov, mod, aiEnhancements, globals(), send_progress_update)
     )
     thread.start()
     

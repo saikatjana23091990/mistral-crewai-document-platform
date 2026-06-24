@@ -5,7 +5,7 @@ import time
 import subprocess
 import tempfile
 from pathlib import Path
-from app.parsers.document_parser import parse_document
+from app.parsers.document_parser import parse_document, extract_first_chunk
 
 
 # Languages that require complex text shaping (non-Latin scripts)
@@ -402,7 +402,7 @@ def _build_docx(blocks, output_path, title=None):
     doc.save(output_path)
 
 
-def run_translation_background(job_id, source_path, target_language, mode, provider, model, globals_dict, send_progress_update):
+def run_translation_background(job_id, source_path, target_language, mode, provider, model, ai_enhancements, globals_dict, send_progress_update):
     try:
         send_progress_update(job_id, "Extracting Content...")
         source_text = parse_document(source_path)
@@ -429,12 +429,27 @@ def run_translation_background(job_id, source_path, target_language, mode, provi
 
         instruction = mode_instructions.get(mode, mode_instructions["Business"])
 
+        enhancement_instructions = ""
+        if ai_enhancements:
+            try:
+                enh_dict = json.loads(ai_enhancements)
+                if any(enh_dict.values()):
+                    enhancement_instructions = "APPLY THE FOLLOWING AI ENHANCEMENTS:\n"
+                    if enh_dict.get("spelling"): enhancement_instructions += "- Correct any spelling mistakes.\n"
+                    if enh_dict.get("grammar"): enhancement_instructions += "- Improve grammar and overall readability.\n"
+                    if enh_dict.get("terminology"): enhancement_instructions += "- Ensure consistent terminology throughout the text.\n"
+                    if enh_dict.get("brand"): enhancement_instructions += "- Preserve brand terms and product names (do not translate them).\n"
+            except:
+                pass
+
         translation_task = Task(
             description=f'''
             Translate the following document text into {target_language}.
 
             TRANSLATION MODE INSTRUCTIONS:
             {instruction}
+
+            {enhancement_instructions}
 
             CRITICAL FORMATTING RULES:
             1. You MUST preserve the document structure using Markdown formatting.
@@ -540,3 +555,105 @@ def run_translation_background(job_id, source_path, target_language, mode, provi
         error_msg = traceback.format_exc()
         print("Translation Error:", error_msg)
         send_progress_update(job_id, "Failed", {"error": str(e)})
+
+
+def generate_preview(source_path, target_language, mode, provider, model, ai_enhancements=None):
+    """Generate a single-page translation preview."""
+    
+    # Extract only the first page/slide/chunk
+    source_text = extract_first_chunk(source_path)
+    if not source_text.strip():
+        source_text = parse_document(source_path)[:1500]
+        
+    original_blocks = _parse_markdown_lines(source_text)
+    
+    # Try to find a title from original for the preview
+    doc_title = None
+    for block in original_blocks:
+        if block["type"] == "heading" and block["level"] == 1:
+            doc_title = block["content"]
+            break
+            
+    original_html = _blocks_to_html(original_blocks, title=doc_title, target_language="English")
+    
+    # Translate
+    from app.agents.document_agents import get_agents
+    from crewai import Task, Crew
+    
+    try:
+        extractor_agent, _, formatter_agent, _ = get_agents(provider, model=model)
+    except Exception:
+        extractor_agent, _, formatter_agent, _ = get_agents("groq", model="llama-3.1-8b-instant")
+        
+    mode_instructions = {
+        "Literal": "Translate exactly. Preserve wording. Do not rephrase.",
+        "Business": "Preserve meaning. Improve readability. Use professional business language.",
+        "Localized": "Adapt culturally. Maintain intent. Optimize for local audience."
+    }
+
+    instruction = mode_instructions.get(mode, mode_instructions["Business"])
+
+    enhancement_instructions = ""
+    if ai_enhancements:
+        try:
+            enh_dict = json.loads(ai_enhancements)
+            if any(enh_dict.values()):
+                enhancement_instructions = "APPLY THE FOLLOWING AI ENHANCEMENTS:\n"
+                if enh_dict.get("spelling"): enhancement_instructions += "- Correct any spelling mistakes.\n"
+                if enh_dict.get("grammar"): enhancement_instructions += "- Improve grammar and overall readability.\n"
+                if enh_dict.get("terminology"): enhancement_instructions += "- Ensure consistent terminology throughout the text.\n"
+                if enh_dict.get("brand"): enhancement_instructions += "- Preserve brand terms and product names (do not translate them).\n"
+        except:
+            pass
+
+    translation_task = Task(
+        description=f'''
+        Translate the following document text into {target_language}.
+
+        TRANSLATION MODE INSTRUCTIONS:
+        {instruction}
+
+        {enhancement_instructions}
+
+        CRITICAL FORMATTING RULES:
+        1. You MUST preserve the document structure using Markdown formatting.
+        2. Use # for main title, ## for section headings, ### for sub-headings.
+        3. Use bullet points (- item) for lists.
+        4. Use **bold text** for emphasis and key terms.
+        5. Preserve paragraph breaks (empty lines between paragraphs).
+        6. Keep numeric values, percentages, dates, and proper nouns (company names) untranslated.
+        7. Maintain the same hierarchical structure as the original document.
+
+        SOURCE TEXT:
+        {source_text}
+
+        OUTPUT FORMAT:
+        Return the translated text using Markdown formatting to preserve structure.
+        Do NOT add any preamble, explanation, or notes. Return ONLY the translated document.
+        ''',
+        expected_output="Translated document text with Markdown formatting preserved",
+        agent=formatter_agent
+    )
+
+    crew = Crew(
+        agents=[formatter_agent],
+        tasks=[translation_task],
+        verbose=True
+    )
+
+    try:
+        result = crew.kickoff()
+        translated_text = str(result)
+    except Exception as e:
+        print("Preview Translation Error:", e)
+        translated_text = "Translation failed during preview generation."
+
+    translated_blocks = _parse_markdown_lines(translated_text)
+    translated_html = _blocks_to_html(translated_blocks, title=doc_title, target_language=target_language)
+
+    return {
+        "original_html": original_html,
+        "translated_html": translated_html,
+        "original_text": source_text,
+        "translated_text": translated_text
+    }

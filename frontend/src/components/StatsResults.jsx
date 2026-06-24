@@ -179,8 +179,8 @@ const Row = ({ row }) => {
   )
 }
 
-const StatsResults = () => {
-  const [tabValue, setTabValue] = useState(0)
+const StatsResults = ({ initialTab = 0, setStatsTab }) => {
+  const [tabValue, setTabValue] = useState(initialTab)
   const [records, setRecords] = useState([])
   const [translationRecords, setTranslationRecords] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -272,7 +272,10 @@ const StatsResults = () => {
   return (
     <Box sx={{ pb: 4, px: 1 }}>
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={(e, val) => setTabValue(val)}>
+        <Tabs value={tabValue} onChange={(e, val) => {
+          setTabValue(val);
+          if (setStatsTab) setStatsTab(val);
+        }}>
           <Tab label="Document Conversion" />
           <Tab label="Document Translation" />
         </Tabs>

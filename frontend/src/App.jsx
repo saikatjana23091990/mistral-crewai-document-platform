@@ -9,17 +9,18 @@ import Settings from './components/Settings'
 
 function App() {
   const [currentPage, setCurrentPage] = useState('convert')
+  const [statsTab, setStatsTab] = useState(0)
 
   const renderPage = () => {
     switch (currentPage) {
       case 'convert':
         return <ConvertDocument />
       case 'translate':
-        return <TranslateDocument />
+        return <TranslateDocument setCurrentPage={setCurrentPage} setStatsTab={setStatsTab} />
       case 'chat':
         return <ChatWithDocument />
       case 'stats_results':
-        return <StatsResults />
+        return <StatsResults initialTab={statsTab} setStatsTab={setStatsTab} />
       case 'settings':
         return <Settings />
       default:
