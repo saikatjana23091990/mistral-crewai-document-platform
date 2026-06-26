@@ -97,6 +97,7 @@ const TranslateDocument = ({ setCurrentPage, setStatsTab }) => {
   
   const [provider, setProvider] = useState('mistral')
   const [model, setModel] = useState('')
+  const [sourceLanguage, setSourceLanguage] = useState('Auto Detect')
   const [targetLanguage, setTargetLanguage] = useState('Japanese (日本語)')
   const [translationMode, setTranslationMode] = useState('Business')
   
@@ -131,6 +132,12 @@ const TranslateDocument = ({ setCurrentPage, setStatsTab }) => {
       })
       .catch(err => console.error("Failed to load settings", err))
   }, [])
+
+  const handleProviderChange = (e) => {
+    const newProv = e.target.value;
+    setProvider(newProv);
+    setModel(PROVIDERS_AND_MODELS[newProv].models[0].id);
+  }
 
   useEffect(() => {
     if (jobId) {
@@ -203,7 +210,10 @@ const TranslateDocument = ({ setCurrentPage, setStatsTab }) => {
       formData.append('filename', fileDetails.name)
       const targetLangStr = targetLanguage.split(' (')[0]
       formData.append('targetLanguage', targetLangStr)
+      const sourceLangStr = sourceLanguage === 'Auto Detect' ? (autoDetectInfo?.detected_language || 'English') : sourceLanguage.split(' (')[0]
+      formData.append('sourceLanguage', sourceLangStr)
       formData.append('mode', translationMode)
+      formData.append('provider', provider)
       formData.append('model', model)
       formData.append('aiEnhancements', JSON.stringify(aiEnhancements))
       
@@ -229,9 +239,12 @@ const TranslateDocument = ({ setCurrentPage, setStatsTab }) => {
       formData.append('file', fileDetails.file)
       const targetLangStr = targetLanguage.split(' (')[0]
       formData.append('targetLanguage', targetLangStr)
+      const sourceLangStr = sourceLanguage === 'Auto Detect' ? (autoDetectInfo?.detected_language || 'English') : sourceLanguage.split(' (')[0]
+      formData.append('sourceLanguage', sourceLangStr)
       formData.append('mode', translationMode)
       formData.append('provider', provider)
       formData.append('model', model)
+      formData.append('aiEnhancements', JSON.stringify(aiEnhancements))
 
       const res = await axios.post(`${API_BASE_URL}/translate/upload`, formData)
       setJobId(res.data.jobId)
@@ -416,11 +429,47 @@ const TranslateDocument = ({ setCurrentPage, setStatsTab }) => {
               <Grid container spacing={3}>
                 <Grid item xs={12} lg={6} xl={4}>
                   <Paper elevation={0} sx={{ p: 4, borderRadius: 4, border: '1px solid #F3F4F6', height: '100%' }}>
-                    <SectionBadge number="2" title="Translation Languages" />
+                    <SectionBadge number="2" title="Translation Settings" />
+                    
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 4 }}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>LLM Provider</InputLabel>
+                        <Select 
+                          value={provider} 
+                          label="LLM Provider" 
+                          onChange={handleProviderChange}
+                        >
+                          {Object.entries(PROVIDERS_AND_MODELS).map(([key, data]) => (
+                            <MenuItem key={key} value={key}>{data.name}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Model</InputLabel>
+                        <Select 
+                          value={model} 
+                          label="Model" 
+                          onChange={(e) => setModel(e.target.value)}
+                        >
+                          {provider && PROVIDERS_AND_MODELS[provider] && PROVIDERS_AND_MODELS[provider].models.map(m => (
+                            <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Box>
+
                     <FormControl fullWidth size="small" sx={{ mb: 4 }}>
                       <InputLabel>Source Language</InputLabel>
-                      <Select value="Auto Detect" label="Source Language" disabled>
+                      <Select 
+                        value={sourceLanguage} 
+                        label="Source Language" 
+                        onChange={(e) => setSourceLanguage(e.target.value)}
+                      >
                         <MenuItem value="Auto Detect">Auto Detect</MenuItem>
+                        {['English', 'French (Français)', 'German (Deutsch)', 'Spanish (Español)', 'Japanese (日本語)', 'Korean (한국어)', 'Arabic', 'Hindi', 'Bengali'].map(lang => (
+                          <MenuItem key={lang} value={lang}>{lang}</MenuItem>
+                        ))}
                       </Select>
                     </FormControl>
                     

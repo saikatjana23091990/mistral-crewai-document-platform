@@ -203,10 +203,18 @@ def translate_analyze(file: UploadFile = File(...)):
         full_text = parse_document(str(source_path))
         words = len(full_text.split())
         
-        # Simple heuristic for language (could be replaced with langdetect)
-        # For now, default to English with high confidence if text exists
-        detected_language = "English"
         confidence = 98.7 if words > 0 else 0.0
+        try:
+            from langdetect import detect
+            lang_code = detect(full_text[:5000])
+            lang_map = {
+                'en': 'English', 'fr': 'French', 'de': 'German', 'es': 'Spanish', 
+                'ja': 'Japanese', 'ko': 'Korean', 'ar': 'Arabic', 'hi': 'Hindi', 
+                'bn': 'Bengali', 'zh-cn': 'Chinese', 'zh-tw': 'Chinese'
+            }
+            detected_language = lang_map.get(lang_code, "English")
+        except Exception:
+            detected_language = "English"
         
     except Exception as e:
         words = 0
@@ -226,6 +234,7 @@ def translate_analyze(file: UploadFile = File(...)):
 def translate_preview(
     filename: str = Form(...),
     targetLanguage: str = Form("Spanish"),
+    sourceLanguage: str = Form("English"),
     mode: str = Form("Business"),
     provider: str = Form(None),
     model: str = Form(None),
@@ -240,7 +249,7 @@ def translate_preview(
     
     from app.services.translation_service import generate_preview
     try:
-        preview_data = generate_preview(str(source_path), targetLanguage, mode, prov, mod, aiEnhancements)
+        preview_data = generate_preview(str(source_path), sourceLanguage, targetLanguage, mode, prov, mod, aiEnhancements)
         return preview_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -250,6 +259,7 @@ async def translate_upload(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     targetLanguage: str = Form("Spanish"),
+    sourceLanguage: str = Form("English"),
     mode: str = Form("Business"),
     provider: str = Form(None),
     model: str = Form(None),
@@ -299,7 +309,7 @@ async def translate_upload(
                     record = {
                         "id": j_id,
                         "filename": file.filename,
-                        "source_language": "English",
+                        "source_language": sourceLanguage,
                         "target_language": targetLanguage,
                         "translation_mode": mode,
                         "quality_score": final_result.get("quality_score"),
@@ -317,7 +327,7 @@ async def translate_upload(
     import threading
     thread = threading.Thread(
         target=run_translation_background,
-        args=(job_id, str(source_path), targetLanguage, mode, prov, mod, aiEnhancements, globals(), send_progress_update)
+        args=(job_id, str(source_path), sourceLanguage, targetLanguage, mode, prov, mod, aiEnhancements, globals(), send_progress_update)
     )
     thread.start()
     

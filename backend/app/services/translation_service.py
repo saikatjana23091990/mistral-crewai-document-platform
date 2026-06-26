@@ -17,97 +17,28 @@ COMPLEX_SCRIPT_LANGUAGES = {
 }
 
 
-def _parse_markdown_lines(text):
-    """Parse markdown-formatted text into structured blocks.
-    Returns list of dicts: {type, content, level}
-    Types: 'heading', 'bullet', 'paragraph', 'blank'
+
+def _markdown_to_html(markdown_text, title=None, target_language="English"):
+    import markdown
+    body_html = markdown.markdown(markdown_text, extensions=['tables', 'fenced_code'])
+
+    # Add custom styling for tables to ensure they look good in PDF
+    table_css = """
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
     """
-    blocks = []
-    lines = text.split("\n")
-
-    for line in lines:
-        stripped = line.strip()
-
-        if not stripped:
-            blocks.append({"type": "blank", "content": "", "level": 0})
-            continue
-
-        # Markdown headings: # ## ### etc.
-        heading_match = re.match(r'^(#{1,4})\s+(.*)', stripped)
-        if heading_match:
-            level = len(heading_match.group(1))
-            blocks.append({"type": "heading", "content": heading_match.group(2).strip(), "level": level})
-            continue
-
-        # Bullet points: - or * or numbered (1. 2. etc)
-        bullet_match = re.match(r'^[\-\*]\s+(.*)', stripped)
-        if bullet_match:
-            blocks.append({"type": "bullet", "content": bullet_match.group(1).strip(), "level": 0})
-            continue
-
-        numbered_match = re.match(r'^\d+[\.\)]\s+(.*)', stripped)
-        if numbered_match:
-            blocks.append({"type": "bullet", "content": stripped, "level": 0})
-            continue
-
-        # Bold line (entire line wrapped in **)
-        bold_line_match = re.match(r'^\*\*(.*)\*\*$', stripped)
-        if bold_line_match:
-            blocks.append({"type": "heading", "content": bold_line_match.group(1).strip(), "level": 2})
-            continue
-
-        # Regular paragraph
-        blocks.append({"type": "paragraph", "content": stripped, "level": 0})
-
-    return blocks
-
-
-def _escape_html(text):
-    """Escape HTML special characters."""
-    text = text.replace("&", "&amp;")
-    text = text.replace("<", "&lt;")
-    text = text.replace(">", "&gt;")
-    text = text.replace('"', "&quot;")
-    return text
-
-
-def _inline_bold_html(text):
-    """Convert **bold** markdown to <strong> tags."""
-    escaped = _escape_html(text)
-    return re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', escaped)
-
-
-def _blocks_to_html(blocks, title=None, target_language="English"):
-    """Convert structured blocks into a beautiful HTML document with full Unicode support."""
-
-    # Build the body HTML from blocks
-    body_parts = []
-
-    if title:
-        body_parts.append(f'<h1 class="doc-title">{_escape_html(title)}</h1>')
-
-    for block in blocks:
-        if block["type"] == "blank":
-            body_parts.append('<div class="spacer"></div>')
-        elif block["type"] == "heading":
-            level = min(block["level"], 4)
-            # Don't duplicate the title
-            if block["level"] == 1 and title and block["content"] == title:
-                continue
-            tag = f"h{level}"
-            body_parts.append(f'<{tag}>{_escape_html(block["content"])}</{tag}>')
-        elif block["type"] == "bullet":
-            body_parts.append(f'<li>{_inline_bold_html(block["content"])}</li>')
-        elif block["type"] == "paragraph":
-            body_parts.append(f'<p>{_inline_bold_html(block["content"])}</p>')
-
-    # Wrap consecutive <li> items in <ul>
-    body_html = "\n".join(body_parts)
-    body_html = re.sub(
-        r'((?:<li>.*?</li>\n?)+)',
-        lambda m: f'<ul>\n{m.group(1)}</ul>\n',
-        body_html
-    )
 
     html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -137,6 +68,8 @@ def _blocks_to_html(blocks, title=None, target_language="English"):
             margin: 0 auto;
             background: #ffffff;
         }}
+        
+        {table_css}
 
         .doc-title {{
             font-size: 22pt;
@@ -172,14 +105,6 @@ def _blocks_to_html(blocks, title=None, target_language="English"):
             color: #2c2c54;
         }}
 
-        h4 {{
-            font-size: 11pt;
-            font-weight: 600;
-            margin-top: 12px;
-            margin-bottom: 6px;
-            color: #2c2c54;
-        }}
-
         p {{
             margin-bottom: 10px;
             text-align: justify;
@@ -199,10 +124,6 @@ def _blocks_to_html(blocks, title=None, target_language="English"):
             font-weight: 700;
         }}
 
-        .spacer {{
-            height: 8px;
-        }}
-
         @media print {{
             body {{
                 padding: 40px 60px;
@@ -211,6 +132,7 @@ def _blocks_to_html(blocks, title=None, target_language="English"):
     </style>
 </head>
 <body>
+{f'<h1 class="doc-title">{title}</h1>' if title else ''}
 {body_html}
 </body>
 </html>'''
@@ -295,84 +217,10 @@ def _html_to_pdf(html_content, output_pdf_path):
                 pass
 
 
-def _build_pdf_reportlab(blocks, output_path, title=None):
-    """Fallback: Build PDF using ReportLab for Latin-script languages."""
-    from reportlab.lib.pagesizes import letter
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.enums import TA_LEFT, TA_CENTER
-
-    doc = SimpleDocTemplate(
-        str(output_path),
-        pagesize=letter,
-        leftMargin=72, rightMargin=72,
-        topMargin=60, bottomMargin=60,
-    )
-
-    styles = getSampleStyleSheet()
-
-    title_style = ParagraphStyle(
-        "CustomTitle", parent=styles["Title"],
-        fontName="Helvetica-Bold", fontSize=18, spaceAfter=20, alignment=TA_CENTER
-    )
-    h1_style = ParagraphStyle(
-        "CustomH1", parent=styles["Heading1"],
-        fontName="Helvetica-Bold", fontSize=16, spaceAfter=10, spaceBefore=16
-    )
-    h2_style = ParagraphStyle(
-        "CustomH2", parent=styles["Heading2"],
-        fontName="Helvetica-Bold", fontSize=13, spaceAfter=8, spaceBefore=12
-    )
-    h3_style = ParagraphStyle(
-        "CustomH3", parent=styles["Heading3"],
-        fontName="Helvetica-Bold", fontSize=11, spaceAfter=6, spaceBefore=10
-    )
-    body_style = ParagraphStyle(
-        "CustomBody", parent=styles["Normal"],
-        fontName="Helvetica", fontSize=10, spaceAfter=6, leading=14
-    )
-    bullet_style = ParagraphStyle(
-        "CustomBullet", parent=styles["Normal"],
-        fontName="Helvetica", fontSize=10, spaceAfter=4, leading=14,
-        leftIndent=24, bulletIndent=12
-    )
-
-    heading_styles = {1: h1_style, 2: h2_style, 3: h3_style, 4: h3_style}
-    story = []
-
-    if title:
-        story.append(Paragraph(_escape_xml(title), title_style))
-        story.append(Spacer(1, 12))
-
-    for block in blocks:
-        if block["type"] == "blank":
-            story.append(Spacer(1, 6))
-        elif block["type"] == "heading":
-            level = block["level"]
-            style = heading_styles.get(level, h2_style)
-            story.append(Paragraph(_escape_xml(block["content"]), style))
-        elif block["type"] == "bullet":
-            story.append(Paragraph(f"\u2022 {_escape_xml(block['content'])}", bullet_style))
-        elif block["type"] == "paragraph":
-            content = _escape_xml(block["content"])
-            content = re.sub(r'\*\*(.+?)\*\*', lambda m: f'<b>{m.group(1)}</b>', content)
-            story.append(Paragraph(content, body_style))
-
-    doc.build(story)
-
-
-def _escape_xml(text):
-    """Escape special XML characters for ReportLab Paragraph."""
-    text = text.replace("&", "&amp;")
-    text = text.replace("<", "&lt;")
-    text = text.replace(">", "&gt;")
-    return text
-
-
-def _build_docx(blocks, output_path, title=None):
-    """Build a properly formatted DOCX from structured blocks."""
+def _build_docx(html_content, output_path, title=None):
+    """Build a properly formatted DOCX from HTML using htmldocx."""
     from docx import Document
-    from docx.shared import Pt
+    from htmldocx import HtmlToDocx
     from docx.enum.text import WD_ALIGN_PARAGRAPH
 
     doc = Document()
@@ -381,28 +229,13 @@ def _build_docx(blocks, output_path, title=None):
         heading = doc.add_heading(title, level=0)
         heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    for block in blocks:
-        if block["type"] == "blank":
-            continue
-        elif block["type"] == "heading":
-            level = min(block["level"], 4)
-            doc.add_heading(block["content"], level=level)
-        elif block["type"] == "bullet":
-            doc.add_paragraph(block["content"], style="List Bullet")
-        elif block["type"] == "paragraph":
-            para = doc.add_paragraph()
-            parts = re.split(r'(\*\*.+?\*\*)', block["content"])
-            for part in parts:
-                if part.startswith("**") and part.endswith("**"):
-                    run = para.add_run(part[2:-2])
-                    run.bold = True
-                else:
-                    para.add_run(part)
+    new_parser = HtmlToDocx()
+    new_parser.add_html_to_document(html_content, doc)
 
     doc.save(output_path)
 
 
-def run_translation_background(job_id, source_path, target_language, mode, provider, model, ai_enhancements, globals_dict, send_progress_update):
+def run_translation_background(job_id, source_path, source_language, target_language, mode, provider, model, ai_enhancements, globals_dict, send_progress_update):
     try:
         send_progress_update(job_id, "Extracting Content...")
         source_text = parse_document(source_path)
@@ -434,17 +267,18 @@ def run_translation_background(job_id, source_path, target_language, mode, provi
             try:
                 enh_dict = json.loads(ai_enhancements)
                 if any(enh_dict.values()):
-                    enhancement_instructions = "APPLY THE FOLLOWING AI ENHANCEMENTS:\n"
-                    if enh_dict.get("spelling"): enhancement_instructions += "- Correct any spelling mistakes.\n"
-                    if enh_dict.get("grammar"): enhancement_instructions += "- Improve grammar and overall readability.\n"
-                    if enh_dict.get("terminology"): enhancement_instructions += "- Ensure consistent terminology throughout the text.\n"
-                    if enh_dict.get("brand"): enhancement_instructions += "- Preserve brand terms and product names (do not translate them).\n"
+                    enhancement_instructions = f"APPLY THE FOLLOWING AI ENHANCEMENTS TO THE {target_language.upper()} OUTPUT:\n"
+                    if enh_dict.get("spelling"): enhancement_instructions += f"- Correct any spelling mistakes in the {target_language} translation.\n"
+                    if enh_dict.get("grammar"): enhancement_instructions += f"- Improve grammar and overall readability of the {target_language} translation.\n"
+                    if enh_dict.get("terminology"): enhancement_instructions += f"- Ensure consistent terminology throughout the {target_language} text.\n"
+                    if enh_dict.get("brand"): enhancement_instructions += "- Preserve brand terms and product names (do not translate them, keep original).\n"
             except:
                 pass
 
         translation_task = Task(
             description=f'''
-            Translate the following document text into {target_language}.
+            You are a professional Translator. Your primary task is to TRANSLATE the following document text into {target_language}.
+            You MUST NOT return the text in {source_language}. You MUST translate it to {target_language}.
 
             TRANSLATION MODE INSTRUCTIONS:
             {instruction}
@@ -461,7 +295,7 @@ def run_translation_background(job_id, source_path, target_language, mode, provi
             7. Maintain the same hierarchical structure as the original document.
 
             SOURCE TEXT:
-            {source_text[:8000]}
+            {source_text}
 
             OUTPUT FORMAT:
             Return the translated text using Markdown formatting to preserve structure.
@@ -482,8 +316,13 @@ def run_translation_background(job_id, source_path, target_language, mode, provi
 
         send_progress_update(job_id, "Formatting Reconstructed...")
 
-        # Parse markdown structure
-        blocks = _parse_markdown_lines(translated_text)
+        # Extract title heuristically
+        doc_title = None
+        title_match = re.search(r'^#\s+(.+)', translated_text, re.MULTILINE)
+        if title_match:
+            doc_title = title_match.group(1).strip()
+            
+        html_content = _markdown_to_html(translated_text, title=doc_title, target_language=target_language)
 
         # Save to output file
         timestamp = str(int(time.time()))
@@ -497,34 +336,21 @@ def run_translation_background(job_id, source_path, target_language, mode, provi
         output_path = Path("outputs") / output_filename
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Extract title from first heading block
-        doc_title = None
-        for block in blocks:
-            if block["type"] == "heading" and block["level"] == 1:
-                doc_title = block["content"]
-                break
-
         if ext == ".pdf":
             # PRIMARY: Use HTML-to-PDF via browser (handles ALL scripts perfectly)
-            html_content = _blocks_to_html(blocks, title=doc_title, target_language=target_language)
             pdf_success = _html_to_pdf(html_content, str(output_path))
 
             if not pdf_success:
-                # FALLBACK for Latin scripts: Use ReportLab
-                if target_language not in COMPLEX_SCRIPT_LANGUAGES:
-                    print("Browser PDF failed, falling back to ReportLab")
-                    _build_pdf_reportlab(blocks, output_path, title=doc_title)
-                else:
-                    # Save as HTML if browser not available for complex scripts
-                    html_output = output_path.with_suffix('.html')
-                    with open(html_output, "w", encoding="utf-8") as f:
-                        f.write(html_content)
-                    output_path = html_output
-                    output_filename = html_output.name
-                    print(f"Saved as HTML for {target_language} (no browser available for PDF)")
+                # Save as HTML if browser not available for complex scripts
+                html_output = output_path.with_suffix('.html')
+                with open(html_output, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                output_path = html_output
+                output_filename = html_output.name
+                print(f"Saved as HTML for {target_language} (no browser available for PDF)")
 
         elif ext == ".docx":
-            _build_docx(blocks, output_path, title=doc_title)
+            _build_docx(html_content, str(output_path), title=doc_title)
         elif ext == ".txt":
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(translated_text)
@@ -557,7 +383,7 @@ def run_translation_background(job_id, source_path, target_language, mode, provi
         send_progress_update(job_id, "Failed", {"error": str(e)})
 
 
-def generate_preview(source_path, target_language, mode, provider, model, ai_enhancements=None):
+def generate_preview(source_path, source_language, target_language, mode, provider, model, ai_enhancements=None):
     """Generate a single-page translation preview."""
     
     # Extract only the first page/slide/chunk
@@ -565,16 +391,13 @@ def generate_preview(source_path, target_language, mode, provider, model, ai_enh
     if not source_text.strip():
         source_text = parse_document(source_path)[:1500]
         
-    original_blocks = _parse_markdown_lines(source_text)
-    
-    # Try to find a title from original for the preview
     doc_title = None
-    for block in original_blocks:
-        if block["type"] == "heading" and block["level"] == 1:
-            doc_title = block["content"]
-            break
+    import re
+    title_match = re.search(r'^#\s+(.+)', source_text, re.MULTILINE)
+    if title_match:
+        doc_title = title_match.group(1).strip()
             
-    original_html = _blocks_to_html(original_blocks, title=doc_title, target_language="English")
+    original_html = _markdown_to_html(source_text, title=doc_title, target_language="English")
     
     # Translate
     from app.agents.document_agents import get_agents
@@ -598,17 +421,18 @@ def generate_preview(source_path, target_language, mode, provider, model, ai_enh
         try:
             enh_dict = json.loads(ai_enhancements)
             if any(enh_dict.values()):
-                enhancement_instructions = "APPLY THE FOLLOWING AI ENHANCEMENTS:\n"
-                if enh_dict.get("spelling"): enhancement_instructions += "- Correct any spelling mistakes.\n"
-                if enh_dict.get("grammar"): enhancement_instructions += "- Improve grammar and overall readability.\n"
-                if enh_dict.get("terminology"): enhancement_instructions += "- Ensure consistent terminology throughout the text.\n"
-                if enh_dict.get("brand"): enhancement_instructions += "- Preserve brand terms and product names (do not translate them).\n"
+                enhancement_instructions = f"APPLY THE FOLLOWING AI ENHANCEMENTS TO THE {target_language.upper()} OUTPUT:\n"
+                if enh_dict.get("spelling"): enhancement_instructions += f"- Correct any spelling mistakes in the {target_language} translation.\n"
+                if enh_dict.get("grammar"): enhancement_instructions += f"- Improve grammar and overall readability of the {target_language} translation.\n"
+                if enh_dict.get("terminology"): enhancement_instructions += f"- Ensure consistent terminology throughout the {target_language} text.\n"
+                if enh_dict.get("brand"): enhancement_instructions += "- Preserve brand terms and product names (do not translate them, keep original).\n"
         except:
             pass
 
     translation_task = Task(
         description=f'''
-        Translate the following document text into {target_language}.
+        You are a professional Translator. Your primary task is to TRANSLATE the following document text into {target_language}.
+        You MUST NOT return the text in {source_language}. You MUST translate it to {target_language}.
 
         TRANSLATION MODE INSTRUCTIONS:
         {instruction}
@@ -648,8 +472,7 @@ def generate_preview(source_path, target_language, mode, provider, model, ai_enh
         print("Preview Translation Error:", e)
         translated_text = "Translation failed during preview generation."
 
-    translated_blocks = _parse_markdown_lines(translated_text)
-    translated_html = _blocks_to_html(translated_blocks, title=doc_title, target_language=target_language)
+    translated_html = _markdown_to_html(translated_text, title=doc_title, target_language=target_language)
 
     return {
         "original_html": original_html,

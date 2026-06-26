@@ -2,28 +2,39 @@ from pathlib import Path
 import json
 
 def parse_pdf(path):
-    import fitz
-    doc = fitz.open(path)
-    text = ""
-
-    for page in doc:
-        text += page.get_text()
-
-    return text
+    try:
+        import pymupdf4llm
+        return pymupdf4llm.to_markdown(path)
+    except ImportError:
+        import fitz
+        doc = fitz.open(path)
+        text = ""
+        for page in doc:
+            text += page.get_text()
+        return text
 
 def parse_docx(path):
-    from docx import Document
-    doc = Document(path)
-    lines = []
-    for p in doc.paragraphs:
-        if p.text.strip():
-            lines.append(p.text)
-    for t in doc.tables:
-        for row in t.rows:
-            row_text = " | ".join(c.text.strip() for c in row.cells)
-            if row_text.strip():
-                lines.append(row_text)
-    return "\n".join(lines)
+    try:
+        import mammoth
+        import markdownify
+        with open(path, "rb") as docx_file:
+            result = mammoth.convert_to_html(docx_file)
+            html = result.value
+            md = markdownify.markdownify(html, heading_style="ATX")
+            return md
+    except ImportError:
+        from docx import Document
+        doc = Document(path)
+        lines = []
+        for p in doc.paragraphs:
+            if p.text.strip():
+                lines.append(p.text)
+        for t in doc.tables:
+            for row in t.rows:
+                row_text = " | ".join(c.text.strip() for c in row.cells)
+                if row_text.strip():
+                    lines.append(row_text)
+        return "\n".join(lines)
 
 def parse_txt(path):
     with open(path, "r", encoding="utf-8") as f:

@@ -1,6 +1,0 @@
-OverAll : If your app needs to render a mix of document types (like .docx, .xlsx, .pdf, and .png), these libraries provide unified wrappers.1. @iamjariwala/react-doc-viewerBest for: Standard web apps needing zero-config client-side rendering.Supported Formats: PDF, DOCX, XLSX, CSV, PNG/JPEG.Why it's great: This is an actively supported community alternative built on top of the original (but unmaintained) @cyntler/react-doc-viewer and react-doc-viewer packages. It renders .docx files beautifully inline using local parsing engines, completely eliminating the need for paid cloud conversion servers
-
-
-The Architecture Strategy (100% Local)Instead of using one broken package, your dialog box will run this conditional logic locally:PDF Files → Render using react-pdf (Uses Mozilla's Web Worker architecture).DOCX Files → Render using docx-preview (Parses zip headers into HTML layout).XLSX Files → Render using sheetjs + react-data-grid (Parses cells into a secure local UI table).PPTX Files → The Hard Limit. There is no reliable client-side open-source .pptx viewer for React. To protect confidential data, you should display a secure metadata summary card (File Name, Size, Page/Slide count) along with an extracted text snippet so the user can verify they uploaded the correct presentation.
-
-
