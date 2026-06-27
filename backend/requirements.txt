@@ -31,3 +31,4 @@ mammoth
 markdownify
 markdown
 htmldocx
+openpyxl

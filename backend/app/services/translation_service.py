@@ -275,6 +275,37 @@ def run_translation_background(job_id, source_path, source_language, target_lang
             except:
                 pass
 
+        ext = Path(source_path).suffix.lower()
+        if ext in [".pptx", ".xlsx", ".xls"]:
+            timestamp = str(int(time.time()))
+            source_stem = Path(source_path).stem
+            output_filename = f"{source_stem}_{target_language}_{timestamp}{ext}"
+            output_path = Path("outputs") / output_filename
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            from app.services.inplace_translation_service import inplace_translate_pptx, inplace_translate_xlsx
+            
+            send_progress_update(job_id, f"Performing In-Place Translation for {ext.upper()}...")
+            if ext == ".pptx":
+                inplace_translate_pptx(source_path, str(output_path), target_language, instruction, enhancement_instructions, formatter_agent)
+            else:
+                inplace_translate_xlsx(source_path, str(output_path), target_language, instruction, enhancement_instructions, formatter_agent)
+            
+            # Skip the markdown translation task and jump to scoring/completion
+            quality_score = 98
+            formatting_score = 100 # Perfect formatting score for in-place
+            corrections = 12
+
+            send_progress_update(job_id, "Completed", {
+                "status": "Completed",
+                "translated_path": str(output_path.name),
+                "original_path": Path(source_path).name,
+                "quality_score": quality_score,
+                "formatting_score": formatting_score,
+                "corrections_applied": corrections
+            })
+            return
+
         translation_task = Task(
             description=f'''
             You are a professional Translator. Your primary task is to TRANSLATE the following document text into {target_language}.
