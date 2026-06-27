@@ -460,6 +460,56 @@ def detect_conflicts(source_data_list: list, reference_columns: list = None) -> 
     return conflicts
 
 def generate_output_file(converted_text: str, target_format: str, source_stem: str, timestamp: str, reference_columns: list = None, reference_path: str = None) -> tuple[Path, str]:
+    if reference_path and Path(reference_path).exists() and target_format in ["docx", "pptx", "xlsx"]:
+        try:
+            cleaned_text = converted_text.strip()
+            if cleaned_text.startswith("```json"):
+                cleaned_text = cleaned_text[7:]
+            elif cleaned_text.startswith("```"):
+                cleaned_text = cleaned_text[3:]
+            import re
+            json_match = re.search(r'\{.*\}', cleaned_text, re.DOTALL)
+            if json_match:
+                cleaned_text = json_match.group(0)
+            
+            import json
+            data = json.loads(cleaned_text)
+            fields = data.get("fields", {})
+            for k, v in fields.items():
+                if isinstance(v, dict) and "value" in v:
+                    fields[k] = v.get("value", "")
+
+            from app.agents.document_agents import get_agents
+            provider = global_settings.get("provider", "groq")
+            model = global_settings.get("model")
+            _, _, formatter_agent, _ = get_agents(provider, model=model)
+
+            filename = f"{source_stem}_converted_{timestamp}.{target_format}"
+            output_path = OUTPUT_DIR / filename
+            
+            from app.services.inplace_conversion_service import inplace_convert_docx, inplace_convert_pptx, inplace_convert_xlsx
+
+            if target_format == "docx":
+                inplace_convert_docx(reference_path, str(output_path), data, formatter_agent)
+                return output_path, filename
+            elif target_format == "pptx":
+                inplace_convert_pptx(reference_path, str(output_path), fields, formatter_agent)
+                charts_data = data.get("charts", [])
+                if charts_data:
+                    from pptx import Presentation
+                    prs = Presentation(str(output_path))
+                    from app.services.pptx_chart_writer import update_pptx_charts
+                    update_pptx_charts(prs, charts_data)
+                    prs.save(str(output_path))
+                return output_path, filename
+            elif target_format == "xlsx":
+                inplace_convert_xlsx(reference_path, str(output_path), data, formatter_agent)
+                return output_path, filename
+        except Exception as e:
+            print(f"In-place conversion failed, falling back to legacy format: {e}")
+            import traceback
+            traceback.print_exc()
+
     if target_format == "xlsx":
         wb = Workbook()
         ws = wb.active
@@ -1206,8 +1256,17 @@ async def convert_document(
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     source_stem = Path(source_filenames[0]).stem if len(source_filenames) == 1 else "multi_source"
 
-    output_path, converted_filename = generate_output_file(
-        converted_output, target_format, source_stem, timestamp, reference_columns=reference_columns, reference_path=str(reference_path)
+    import functools
+    output_path, converted_filename = await asyncio.to_thread(
+        functools.partial(
+            generate_output_file,
+            converted_output, 
+            target_format, 
+            source_stem, 
+            timestamp, 
+            reference_columns=reference_columns, 
+            reference_path=str(reference_path)
+        )
     )
 
     try:
