@@ -22,7 +22,9 @@ Translate entire presentations, spreadsheets, and Word documents while keeping e
 - **Side-by-Side Preview**: Interactively preview translated text chunks before committing to the final download!
 
 ![Translation Configuration](Application%20Previews/Translate_Document_configuration.png)
+![Translation Pre-flight Stats](Application%20Previews/Translate_Document_Preconfigure_Stats.png)
 ![Translation Preview](Application%20Previews/Translate-Dcoument_Preview.png)
+![Translation Final Result](Application%20Previews/Translate_Dcoument_Result.png)
 
 ### 📄 2. Intelligent Document Conversion (Upgraded!)
 Convert unstructured data from multiple sources into a single, beautifully structured reference template (XLSX, DOCX, PDF, PPTX).
@@ -36,6 +38,7 @@ Convert unstructured data from multiple sources into a single, beautifully struc
 
 ![AI Mapping Suggestions](Application%20Previews/Convert%20document%20mapping.png)
 ![Conflict Resolution](Application%20Previews/Convert%20document%20mapping%20conflict%20resultion.png)
+![Conversion Result Document](Application%20Previews/Convert%20document%20results.png)
 
 ### 💬 3. Agentic RAG Chat
 Explore and interrogate your converted and translated documents using an intelligent chat interface.
@@ -49,7 +52,9 @@ Explore and interrogate your converted and translated documents using an intelli
 ### ⚙️ 4. Global Settings & Analytics
 Control your platform's behavior and aesthetic from a centralized command center.
 
-![Settings Page](Application%20Previews/Settings%20and%20stat%20page.png)
+![Global Stats Dashboard](Application%20Previews/Settings%20and%20stat%20page.png)
+![Translation Analytics](Application%20Previews/results%20and%20stats%20page%20translate.png)
+![Settings Configuration](Application%20Previews/Settings%20Page.png)
 
 - **Dynamic Neomorphic UI**: Switch app themes instantly (Purple, Pink, Yellow, Orange) with sleek, modern neomorphic components.
 - **Usage Stats & History**: Live dashboard metric cards tracking conversion rates, translation jobs, and data saved.
