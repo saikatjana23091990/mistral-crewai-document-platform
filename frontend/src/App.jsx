@@ -2,21 +2,25 @@ import { useState } from 'react'
 import { Box, Container } from '@mui/material'
 import Header from './components/Header'
 import ConvertDocument from './components/ConvertDocument'
+import TranslateDocument from './components/TranslateDocument'
 import ChatWithDocument from './components/ChatWithDocument'
 import StatsResults from './components/StatsResults'
 import Settings from './components/Settings'
 
 function App() {
   const [currentPage, setCurrentPage] = useState('convert')
+  const [statsTab, setStatsTab] = useState(0)
 
   const renderPage = () => {
     switch (currentPage) {
       case 'convert':
         return <ConvertDocument />
+      case 'translate':
+        return <TranslateDocument setCurrentPage={setCurrentPage} setStatsTab={setStatsTab} />
       case 'chat':
         return <ChatWithDocument />
       case 'stats_results':
-        return <StatsResults />
+        return <StatsResults initialTab={statsTab} setStatsTab={setStatsTab} />
       case 'settings':
         return <Settings />
       default:

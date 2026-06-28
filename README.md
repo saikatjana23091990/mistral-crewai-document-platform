@@ -1,226 +1,159 @@
-# Mistral CrewAI Document Platform
+# 🚀 Mistral CrewAI Document Platform
 
-AI-powered **multi-source document conversion** + **agentic RAG conversational chat** platform.
+An AI-powered, production-ready platform for **Multi-Source Document Conversion**, **Format-Preserving Translation**, and **Agentic RAG Conversational Chat**. 
 
-Convert documents from multiple sources into a single reference format (XLSX / DOCX / PDF) with conflict resolution, then explore the converted data using an intelligent chat interface powered by Mistral, Google Gemini, or AWS Bedrock.
+Built for enterprise efficiency, this platform magically extracts, transforms, translates, and explores data across dozens of complex document formats without ever losing your original template's beautiful formatting!
 
 ![Platform Dashboard & Stats](Application%20Previews/results%20and%20stats%20page.png)
 
-## ✨ Key Features
+---
 
-### Document Conversion
+## ✨ Exciting New Features
+
+### 🌍 1. Format-Preserving Document Translation (NEW!)
+Translate entire presentations, spreadsheets, and Word documents while keeping every chart, color, and font perfectly intact.
+
+![Translate Document Interface](Application%20Previews/Translate_Document_Interface.png)
+
+- **In-Place Translation Engine**: Our surgical AI extracts text run-by-run and cell-by-cell, translating the content and re-injecting it back into your original file. **Zero formatting loss.**
+- **Smart Language Detection**: Automatically detects the source language.
+- **Granular Configuration**: Define custom translation instructions, tone enhancements, and terminology rules before translating.
+- **Batched Processing**: Safely translates massive documents without ever hitting LLM token limits.
+- **Side-by-Side Preview**: Interactively preview translated text chunks before committing to the final download!
+
+![Translation Configuration](Application%20Previews/Translate_Document_configuration.png)
+![Translation Preview](Application%20Previews/Translate-Dcoument_Preview.png)
+
+### 📄 2. Intelligent Document Conversion (Upgraded!)
+Convert unstructured data from multiple sources into a single, beautifully structured reference template (XLSX, DOCX, PDF, PPTX).
 
 ![Convert Document Wizard](Application%20Previews/Convert%20Document%20Interface.png)
 
-- **Modern Neomorphic UI**: Beautiful 4-step wizard design (Customizable Appearance Settings with Purple, Pink, Yellow, and Orange themes).
-- **Upload**: Multiple source documents (PDF, DOCX, XLSX, TXT, PPTX) and a reference template file.
-- **Graphical Template Support**: PPTX templates are supported with automated shape and chart replacements.
-- **In-App Guides**: Built-in "Conversion Guide" and "How It Works" dialogs.
-- **Interactive Map Review**: 
-  - Preview AI-suggested mappings and confidence scores.
-  - **Manual Overrides**: Edit extracted values or manually map missing fields.
-  - **Auto Map & Filtering**: Filter by status (Mapped, Missing, Needs Review, Ignored) and search fields instantly.
+- **Hybrid In-Place Templates**: The system automatically detects if your template is a scattered **Form** (e.g. `Name: [  ]`) or a structured **Table**. It fills in the blanks intelligently and dynamically appends tabular rows as needed.
+- **Graphical PPTX Support**: Replaces text, dynamically updates Charts, and respects presentation slide masters.
+- **Interactive Map Review & Override**: Preview AI-suggested mappings, edit extracted values, and manually map missing fields before generating the file.
+- **Conflict Resolution**: Human-in-the-loop verification automatically flags differing values extracted from multiple sources (e.g. conflicting revenue numbers).
 
 ![AI Mapping Suggestions](Application%20Previews/Convert%20document%20mapping.png)
-
-- **Conflict Resolution**: Human-in-the-loop verification automatically flags differing values extracted from multiple source documents.
-
 ![Conflict Resolution](Application%20Previews/Convert%20document%20mapping%20conflict%20resultion.png)
 
-- **Native Output Generation**: Download the fully populated converted document instantly.
-
-![Conversion Results](Application%20Previews/Convert%20document%20results.png)
-
-### Agentic RAG Chat with Document
+### 💬 3. Agentic RAG Chat
+Explore and interrogate your converted and translated documents using an intelligent chat interface.
 
 ![Intelligent Chat](Application%20Previews/Chat%20with%20document%20interface.png)
 
-- Full chat history panel with session isolation ("New Chat" properly clears context).
-- Load documents from conversion history or upload new ones.
-- **Contextual Suggestions**: Start your chat easily with context-aware prompts based on your documents.
-- **Multi-provider support** (Dynamically selectable via UI):
-  - **Groq** (Default - lightning-fast inference)
-  - **OpenRouter** (Flexible OpenAI-compatible routing)
-  - **AWS Bedrock** (Anthropic Claude Haiku support)
-- Structured responses: Executive Summary + Key Sections/Findings + Key Data/Numbers & Entities + Implications & Recommendations
-- Anti-hallucination: responses are strictly grounded in source chunks.
+- **Contextual Awareness**: Chat history panel with strict session isolation.
+- **Multi-Provider Support**: Switch instantly between **Groq** (lightning-fast), **OpenRouter**, or **AWS Bedrock** (Claude Haiku).
+- **Anti-Hallucination**: Responses are strictly grounded in source chunks, featuring executive summaries and evidence badges.
 
-### Global Settings & Admin
+### ⚙️ 4. Global Settings & Analytics
+Control your platform's behavior and aesthetic from a centralized command center.
 
 ![Settings Page](Application%20Previews/Settings%20and%20stat%20page.png)
 
-- **Centralized Configuration**: Globally control the active LLM provider and parameters (temperature, model type, streaming).
-- **Appearance Customization**: Dynamically switch the app theme colors (Purple, Pink, Yellow, Orange) with persistent state.
-- **Usage Stats & History**: Live dashboard metric cards with dynamic average success rates and filterable conversion history.
+- **Dynamic Neomorphic UI**: Switch app themes instantly (Purple, Pink, Yellow, Orange) with sleek, modern neomorphic components.
+- **Usage Stats & History**: Live dashboard metric cards tracking conversion rates, translation jobs, and data saved.
 
-### Technical Highlights
-- FastAPI backend with LangChain + ChromaDB
-- React + Vite + Material-UI frontend
-- Clean separation of concerns
-- Docker-ready
+---
 
 ## 🏗️ Tech Stack
 
 | Layer       | Technology                          |
 |-------------|-------------------------------------|
-| Frontend    | React 18, Vite, MUI, Axios (Neomorphic Design) |
-| Backend     | FastAPI, Uvicorn                    |
-| AI Agents   | CrewAI (Document Conversion)        |
-| AI / RAG    | Groq, OpenRouter, AWS Bedrock, LangChain |
-| Vector DB   | ChromaDB                            |
-| Document    | PyMuPDF, python-docx, pandas, openpyxl, unstructured |
-| Deployment  | Docker Compose                      |
+| **Frontend**| React 18, Vite, Material-UI, Axios (Neomorphic UI) |
+| **Backend** | FastAPI, Uvicorn, Python 3.11       |
+| **AI Agents**| CrewAI (Orchestration & Workflow)   |
+| **AI / RAG**| Groq, OpenRouter, AWS Bedrock, LangChain |
+| **Vector DB**| ChromaDB                            |
+| **Doc Parsers**| PyMuPDF, python-docx, python-pptx, openpyxl, unstructured |
 
-## 🚀 Installation Guide
+---
 
-### Option 1: Local Development (Recommended for development)
+## 🚀 Installation & Setup
 
-#### 1. Clone and setup
+### Option 1: Docker Compose (Recommended for Production)
+
+The easiest way to get started.
+
 ```bash
+# 1. Clone the repository
 git clone <your-repo-url>
 cd mistral-crewai-document-platform
-```
 
-#### 2. Backend
+# 2. Setup Environment Variables
+cp .env.example .env
+# Edit .env and add your GROQ_API_KEY or OPENROUTER_API_KEY
+
+# 3. Build and Start
+docker compose up --build
+```
+- **Backend API**: http://localhost:8000
+- **Frontend App**: http://localhost:5173
+
+### Option 2: Local Development Setup
+
+#### Backend Setup
 ```bash
 cd backend
 python -m venv ../.venv
+
+# Activate virtual environment
 source ../.venv/Scripts/activate   # Windows
 # source ../.venv/bin/activate     # macOS/Linux
 
+# Install dependencies
 pip install -r requirements.txt
-```
 
-Create `.env` file (see `.env.example`):
-```env
-GROQ_API_KEY=your_groq_key
-OPENROUTER_API_KEY=your_openrouter_key
-AWS_REGION=us-east-1
-AWS_BEARER_TOKEN_BEDROCK=bedrock-api-key-xxxx
-```
-
-Run backend:
-```bash
+# Start Server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-#### 3. Frontend
+#### Frontend Setup
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173
-
-### Option 2: Docker Compose (Easiest for production-like)
-
-```bash
-# Copy environment file
-cp .env.example .env
-# Edit .env with your API keys
-
-# Build and run everything
-docker compose up --build
-```
-
-- Backend: http://localhost:8000
-- Frontend: http://localhost:5173
-
-To stop:
-```bash
-docker compose down
-```
+---
 
 ## 🔑 Environment Variables
 
-| Variable                    | Required | Description                              | Example |
-|----------------------------|----------|------------------------------------------|---------|
-| `GROQ_API_KEY`             | Optional | Groq API key                             | - |
-| `OPENROUTER_API_KEY`       | Optional | OpenRouter API key                       | - |
-| `AWS_REGION`               | Optional | AWS region for Bedrock                   | us-east-1 |
-| `AWS_BEARER_TOKEN_BEDROCK` | Optional | Bedrock short-term bearer token          | bedrock-api-key-... |
+Create a `.env` file in the root or `/backend` directory:
 
-The app supports **three providers** selectable in the Chat and Conversion UI:
-- Groq (default)
-- OpenRouter
-- AWS Bedrock
-
-## 📁 Project Structure
-
-```
-mistral-crewai-document-platform/
-├── backend/
-│   ├── app/
-│   │   ├── main.py                 # FastAPI routes (/convert, /chat, /download)
-│   │   ├── services/               # Conversion logic
-│   │   ├── rag/                    # AgenticMemoryRAG + multi-provider support
-│   │   └── parsers/                # Document parsers
-│   ├── uploads/                    # Uploaded files
-│   ├── outputs/                    # Converted documents
-│   ├── chroma_db/                  # Vector store
-│   ├── requirements.txt
-│   └── Dockerfile
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── ConvertDocument.jsx
-│   │   │   └── ChatWithDocument.jsx
-│   │   └── App.jsx
-│   ├── package.json
-│   ├── Dockerfile
-│   └── nginx.conf
-├── docker-compose.yml
-├── .env.example
-├── .gitignore
-└── README.md
-```
-
-## 🔄 Document Conversion Workflow
-
-1. Upload **one or more source documents**
-2. Upload a **reference file** (defines target columns/format)
-3. Click **Review Mapping** to get AI-suggested fields
-4. **Human-in-the-loop**: Edit extracted values, manually map missing fields, or ignore fields using the Interactive Table.
-5. Click **Save Mapping & Convert** to pass your overrides to the CrewAI agents.
-6. Download the native-format output file.
-
-## 💬 Chat Features
-
-- Select model at top-right
-- Load previous conversion outputs or upload new files
-- Ask natural language questions
-- Follow-up questions supported via memory
-- Responses include grounding badges
-
-## 🐳 Docker Details
-
-See `docker-compose.yml` and individual Dockerfiles.
-
-Useful commands:
-```bash
-# Rebuild specific service
-docker compose build backend
-
-# View logs
-docker compose logs -f backend
-
-# Clean everything
-docker compose down -v
-```
-
-## 🛠️ Future Improvements
-
-- Add more document formats (images via OCR)
-- Streaming responses in chat
-- User authentication and Role-Based Access Control (RBAC)
-- Batch conversion jobs
-- Advanced semantic retrieval (custom embeddings and chunking)
-
-## 📄 License
-
-MIT
+| Variable                    | Required | Description                              |
+|----------------------------|----------|------------------------------------------|
+| `GROQ_API_KEY`             | Optional | Recommended default provider key         |
+| `OPENROUTER_API_KEY`       | Optional | OpenRouter API key                       |
+| `AWS_REGION`               | Optional | AWS region for Bedrock                   |
+| `AWS_BEARER_TOKEN_BEDROCK` | Optional | Bedrock short-term bearer token          |
 
 ---
 
-Built with ❤️ using FastAPI, React, and modern LLMs.
+## 🔄 How To Use
+
+### Translating a Document
+1. Navigate to the **Translate Document** tab.
+2. Upload your file (DOCX, PPTX, XLSX).
+3. Verify the auto-detected source language and select your target language.
+4. Add any custom tone instructions (e.g. "Make it sound highly professional").
+5. Preview the translation side-by-side, approve it, and download your perfectly formatted file!
+
+### Converting a Document
+1. Navigate to the **Convert Document** tab.
+2. Upload your **Source Documents** (the files containing your unstructured data).
+3. Upload your **Reference Template** (an empty DOCX/XLSX/PPTX showing how you want the output to look).
+4. Review the AI's data mapping, resolve any conflicts, and click **Convert**.
+
+---
+
+## 🛠️ Future Improvements
+
+- Add more document formats (Images via OCR)
+- Streaming responses in chat
+- User authentication and Role-Based Access Control (RBAC)
+- Batch conversion jobs for entire directories
+
+## 📄 License
+
+MIT License. Built with ❤️ using FastAPI, React, and modern LLMs.

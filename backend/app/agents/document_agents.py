@@ -70,17 +70,59 @@ class OpenAICompatibleLLM(BaseLLM):
             response_model=response_model,
         )
 
+class BedrockCompatibleLLM(BaseLLM):
+    """CrewAI-compatible LLM implementation using BedrockProvider."""
+    model: str
 
-def get_agents(provider="groq"):
+    def call(
+        self,
+        messages: str | list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+        callbacks: list[Any] | None = None,
+        available_functions: dict[str, Any] | None = None,
+        from_task: Any | None = None,
+        from_agent: Any | None = None,
+        response_model: Any | None = None,
+    ) -> str | Any:
+        from app.rag.rag_engine import BedrockProvider
+        provider = BedrockProvider()
+        provider.model = self.model
+
+        if isinstance(messages, str):
+            msgs = [{"role": "user", "content": messages}]
+        elif isinstance(messages, list):
+            msgs = messages
+        else:
+            raise ValueError("Messages must be a string or a list of message dictionaries")
+
+        system = ""
+        user_msgs = []
+        for msg in msgs:
+            if msg.get("role") == "system":
+                system += msg.get("content", "") + "\n"
+            else:
+                user_msgs.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+
+        return provider.chat(user_msgs, system=system, max_tokens=4000)
+
+    async def acall(self, *args, **kwargs) -> str | Any:
+        return self.call(*args, **kwargs)
+
+
+def get_agents(provider="groq", model=None):
     if provider == "openrouter":
         llm = OpenAICompatibleLLM(
-            model="meta-llama/llama-3.1-8b-instruct:free",
+            model=model or "meta-llama/llama-3.3-70b-instruct:free",
             api_key=os.getenv("OPENROUTER_API_KEY", "your_openrouter_api_key"),
             base_url="https://openrouter.ai/api/v1"
         )
+    elif provider == "bedrock":
+        llm = BedrockCompatibleLLM(
+            model=model or "anthropic.claude-sonnet-4-5-20250929-v1:0"
+        )
     else:
         llm = OpenAICompatibleLLM(
-            model="llama-3.3-70b-versatile",
+            model=model or "llama-3.1-8b-instant",
             api_key=os.getenv("GROQ_API_KEY", "your-groq-key-here"),
             base_url="https://api.groq.com/openai/v1"
         )

@@ -39,6 +39,26 @@ const themeColors = {
     buttonHoverGradient: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
     outlinedBorder: '#FFEDD5',
     outlinedHoverBg: '#FFF7ED'
+  },
+  green: {
+    primary: { main: '#10B981', dark: '#047857', light: '#34D399', contrastText: '#ffffff' },
+    background: { default: '#ECFDF5', paper: '#FFFFFF' },
+    divider: '#D1FAE5',
+    shadow: 'rgba(16, 185, 129',
+    buttonGradient: 'linear-gradient(135deg, #34D399 0%, #10B981 100%)',
+    buttonHoverGradient: 'linear-gradient(135deg, #10B981 0%, #047857 100%)',
+    outlinedBorder: '#A7F3D0',
+    outlinedHoverBg: '#ECFDF5'
+  },
+  indigo: {
+    primary: { main: '#4F46E5', dark: '#3730A3', light: '#818CF8', contrastText: '#ffffff' },
+    background: { default: '#EEF2FF', paper: '#FFFFFF' },
+    divider: '#E0E7FF',
+    shadow: 'rgba(79, 70, 229',
+    buttonGradient: 'linear-gradient(135deg, #818CF8 0%, #4F46E5 100%)',
+    buttonHoverGradient: 'linear-gradient(135deg, #4F46E5 0%, #3730A3 100%)',
+    outlinedBorder: '#C7D2FE',
+    outlinedHoverBg: '#EEF2FF'
   }
 }
 

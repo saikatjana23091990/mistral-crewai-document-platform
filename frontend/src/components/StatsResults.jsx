@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import {
   Box, Typography, Paper, Grid, TextField, InputAdornment, Button, Chip,
   Table, TableHead, TableRow, TableCell, TableBody, CircularProgress,
-  IconButton, Collapse, Tooltip, useTheme, TableContainer, Menu, MenuItem
+  IconButton, Collapse, Tooltip, useTheme, TableContainer, Menu, MenuItem,
+  Tabs, Tab
 } from '@mui/material'
 import { alpha } from '@mui/material/styles'
 import SearchIcon from '@mui/icons-material/Search'
@@ -178,8 +179,10 @@ const Row = ({ row }) => {
   )
 }
 
-const StatsResults = () => {
+const StatsResults = ({ initialTab = 0, setStatsTab }) => {
+  const [tabValue, setTabValue] = useState(initialTab)
   const [records, setRecords] = useState([])
+  const [translationRecords, setTranslationRecords] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('All')
   const [anchorEl, setAnchorEl] = useState(null)
@@ -191,14 +194,23 @@ const StatsResults = () => {
     success_rate: 100,
     this_month_conversions: 0
   })
+  const [translationStats, setTranslationStats] = useState({
+    total_translations: 0,
+    successful_translations: 0,
+    average_quality: 0.0,
+    languages_supported: 12,
+    documents_translated: 0
+  })
   const [loading, setLoading] = useState(true)
 
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [statsRes, historyRes] = await Promise.all([
+      const [statsRes, historyRes, transStatsRes, transHistoryRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/stats`),
-        axios.get(`${API_BASE_URL}/history`)
+        axios.get(`${API_BASE_URL}/history`),
+        axios.get(`${API_BASE_URL}/translate/stats`),
+        axios.get(`${API_BASE_URL}/translate/history`)
       ])
 
       const historyData = historyRes.data.records || []
@@ -222,6 +234,9 @@ const StatsResults = () => {
 
       setStats({ ...statsRes.data, success_rate: avgSuccessRate })
       setRecords(formattedRecords)
+      
+      setTranslationStats(transStatsRes.data)
+      setTranslationRecords(transHistoryRes.data.records || [])
     } catch (err) {
       console.error("Failed to fetch data", err)
     } finally {
@@ -248,8 +263,24 @@ const StatsResults = () => {
     return matchesSearch && matchesFilter;
   });
 
+  const filteredTranslationRecords = translationRecords.filter(row => {
+    const matchesSearch = row.filename.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = filterStatus === 'All' || row.status === filterStatus;
+    return matchesSearch && matchesFilter;
+  });
+
   return (
     <Box sx={{ pb: 4, px: 1 }}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={tabValue} onChange={(e, val) => {
+          setTabValue(val);
+          if (setStatsTab) setStatsTab(val);
+        }}>
+          <Tab label="Document Conversion" />
+          <Tab label="Document Translation" />
+        </Tabs>
+      </Box>
+
       {/* Header section with Stats */}
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
@@ -264,50 +295,101 @@ const StatsResults = () => {
         </Box>
         
         <Grid container spacing={3}>
-          <Grid item xs={12} sm={6} md={2.4}>
-            <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2, position: 'relative', overflow: 'hidden' }}>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Total Conversions</Typography>
-              <Typography variant="h4" sx={{ mb: 1, fontWeight: 800 }}>{stats.documents_converted}</Typography>
-              <Typography variant="caption" color="text.secondary">All time conversions</Typography>
-            </Paper>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2.4}>
-            <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2 }}>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Successful Conversions</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <CheckCircleOutlineIcon color="success" sx={{ fontSize: 32 }} />
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>{stats.documents_converted}</Typography>
-              </Box>
-              <Typography variant="caption" color="text.secondary">All time successful</Typography>
-            </Paper>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2.4}>
-             <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2 }}>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Success Rate</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <AssessmentIcon color="warning" sx={{ fontSize: 32 }} />
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>{stats.success_rate || 100}%</Typography>
-              </Box>
-              <Typography variant="caption" color="text.secondary">Average success rate</Typography>
-            </Paper>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2.4}>
-             <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2 }}>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>This Month</Typography>
-              <Typography variant="h4" sx={{ mb: 1, fontWeight: 800 }}>{stats.this_month_conversions || 0}</Typography>
-              <Typography variant="caption" color="text.secondary">Conversions this month</Typography>
-            </Paper>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2.4}>
-             <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2 }}>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Total Size Saved</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <DownloadIcon color="info" sx={{ fontSize: 32 }} />
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>{formatSize(stats.total_size_saved || 0)}</Typography>
-              </Box>
-              <Typography variant="caption" color="text.secondary">Storage saved</Typography>
-            </Paper>
-          </Grid>
+          {tabValue === 0 ? (
+            <>
+              <Grid item xs={12} sm={6} md={2.4}>
+                <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2, position: 'relative', overflow: 'hidden' }}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Total Conversions</Typography>
+                  <Typography variant="h4" sx={{ mb: 1, fontWeight: 800 }}>{stats.documents_converted}</Typography>
+                  <Typography variant="caption" color="text.secondary">All time conversions</Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.4}>
+                <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Successful Conversions</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <CheckCircleOutlineIcon color="success" sx={{ fontSize: 32 }} />
+                    <Typography variant="h4" sx={{ fontWeight: 800 }}>{stats.documents_converted}</Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">All time successful</Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.4}>
+                 <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Success Rate</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <AssessmentIcon color="warning" sx={{ fontSize: 32 }} />
+                    <Typography variant="h4" sx={{ fontWeight: 800 }}>{stats.success_rate || 100}%</Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">Average success rate</Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.4}>
+                 <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>This Month</Typography>
+                  <Typography variant="h4" sx={{ mb: 1, fontWeight: 800 }}>{stats.this_month_conversions || 0}</Typography>
+                  <Typography variant="caption" color="text.secondary">Conversions this month</Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.4}>
+                 <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Total Size Saved</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <DownloadIcon color="info" sx={{ fontSize: 32 }} />
+                    <Typography variant="h4" sx={{ fontWeight: 800 }}>{formatSize(stats.total_size_saved || 0)}</Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">Storage saved</Typography>
+                </Paper>
+              </Grid>
+            </>
+          ) : (
+            <>
+              <Grid item xs={12} sm={6} md={2.4}>
+                <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Total Translations</Typography>
+                  <Typography variant="h4" sx={{ mb: 1, fontWeight: 800 }}>{translationStats.total_translations}</Typography>
+                  <Typography variant="caption" color="text.secondary">All time</Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.4}>
+                <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Successful Translations</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <CheckCircleOutlineIcon color="success" sx={{ fontSize: 32 }} />
+                    <Typography variant="h4" sx={{ fontWeight: 800 }}>{translationStats.successful_translations}</Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">All time</Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.4}>
+                 <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Average Quality</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <AssessmentIcon color="primary" sx={{ fontSize: 32 }} />
+                    <Typography variant="h4" sx={{ fontWeight: 800 }}>{Math.round(translationStats.average_quality)}%</Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">AI Scored Quality</Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.4}>
+                 <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Languages Supported</Typography>
+                  <Typography variant="h4" sx={{ mb: 1, fontWeight: 800 }}>{translationStats.languages_supported}</Typography>
+                  <Typography variant="caption" color="text.secondary">Available Target Languages</Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.4}>
+                 <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Documents Translated</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <DescriptionIcon color="info" sx={{ fontSize: 32 }} />
+                    <Typography variant="h4" sx={{ fontWeight: 800 }}>{translationStats.documents_translated}</Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">Total documents processed</Typography>
+                </Paper>
+              </Grid>
+            </>
+          )}
         </Grid>
       </Box>
 
@@ -347,16 +429,28 @@ const StatsResults = () => {
           <TableContainer sx={{ maxHeight: 600, overflow: 'auto' }}>
             <Table stickyHeader>
               <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Conversion Name</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Type</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Source Documents / Target Template</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Converted By</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Conversion Date ↓</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Success Mapping</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Status</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Actions</TableCell>
-                </TableRow>
+                {tabValue === 0 ? (
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Conversion Name</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Type</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Source Documents / Target Template</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Converted By</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Conversion Date ↓</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Success Mapping</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Status</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Actions</TableCell>
+                  </TableRow>
+                ) : (
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Document</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Language Pair</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Mode</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Date ↓</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Quality</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Status</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, color: 'text.secondary', bgcolor: 'background.paper' }}>Actions</TableCell>
+                  </TableRow>
+                )}
               </TableHead>
               <TableBody>
                 {loading ? (
@@ -365,14 +459,68 @@ const StatsResults = () => {
                       <CircularProgress />
                     </TableCell>
                   </TableRow>
-                ) : filteredRecords.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 10 }}>
-                      <Typography color="text.secondary">No conversions found</Typography>
-                    </TableCell>
-                  </TableRow>
+                ) : tabValue === 0 ? (
+                  filteredRecords.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 10 }}>
+                        <Typography color="text.secondary">No conversions found</Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredRecords.map((row, index) => <Row key={index} row={row} />)
+                  )
                 ) : (
-                  filteredRecords.map((row, index) => <Row key={index} row={row} />)
+                  filteredTranslationRecords.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 10 }}>
+                        <Typography color="text.secondary">No translations found</Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredTranslationRecords.map((row, index) => (
+                      <TableRow key={index}>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <DescriptionIcon sx={{ color: 'primary.light', fontSize: 24 }} />
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>{row.filename}</Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">{row.source_language} → {row.target_language}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">{row.translation_mode}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">{new Date(row.date).toLocaleString()}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 600 }}>{row.quality_score}%</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            icon={row.status === 'Completed' ? <CheckCircleOutlineIcon fontSize="small" /> : undefined}
+                            label={row.status}
+                            size="small"
+                            color={row.status === "Completed" ? "success" : "default"}
+                            variant="outlined"
+                            sx={{ fontWeight: 600, border: 'none', bgcolor: row.status === 'Completed' ? 'rgba(76, 175, 80, 0.1)' : 'transparent' }}
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Tooltip title="Download">
+                            <IconButton 
+                              size="small" 
+                              sx={{ color: 'primary.main', border: '1px solid #EDE9FE', borderRadius: 2, p: 0.8 }}
+                              onClick={() => window.open(`${API_BASE_URL}/outputs/${row.translated_path}`, "_blank")}
+                            >
+                              <DownloadIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )
                 )}
               </TableBody>
             </Table>

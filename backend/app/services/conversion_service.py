@@ -1,10 +1,10 @@
 import json
 
-def run_conversion(source_text, reference_text, target_format="txt", resolutions=None, provider="groq", manifest_slots=None, source_tags=None):
+def run_conversion(source_text, reference_text, target_format="txt", resolutions=None, provider="groq", manifest_slots=None, source_tags=None, model=None):
     try:
         from crewai import Crew, Task
         from app.agents.document_agents import get_agents
-        extractor_agent, normalizer_agent, formatter_agent, validator_agent = get_agents(provider)
+        extractor_agent, normalizer_agent, formatter_agent, validator_agent = get_agents(provider, model=model)
     except Exception as e:
         import traceback
         with open("error.log", "w") as f:
@@ -21,88 +21,106 @@ def run_conversion(source_text, reference_text, target_format="txt", resolutions
     manifest_str = escape_braces(f"\n\nTEMPLATE MANIFEST (Target Fields & Formatting Rules):\n{json.dumps(manifest_slots, indent=2)}\n") if manifest_slots else ""
     source_tags_str = escape_braces(f"\n\nSOURCE AUTHORITY TAGS (e.g. prioritize 'approval' over narrative):\n{json.dumps(source_tags, indent=2)}\n") if source_tags else ""
     safe_source_text = escape_braces(source_text)
+    def chunk_text(text, max_chars=12000):
+        if len(text) <= max_chars:
+            return [text]
+        paragraphs = text.split('\n\n')
+        chunks = []
+        current = []
+        curr_len = 0
+        for p in paragraphs:
+            if curr_len + len(p) > max_chars and current:
+                chunks.append('\n\n'.join(current))
+                current = [p]
+                curr_len = len(p)
+            else:
+                current.append(p)
+                curr_len += len(p)
+        if current:
+            chunks.append('\n\n'.join(current))
+        return chunks
+
+    source_chunks = chunk_text(safe_source_text)
+    extracted_results = []
     
-    if target_format == "pptx":
-        extraction_description = f'''
+    for i, chunk in enumerate(source_chunks):
+        print(f"Extracting chunk {i+1} of {len(source_chunks)}...")
+        if target_format == "pptx":
+            extraction_description = f'''
+                Extract ALL information from the combined source documents into a structured, evidence-backed representation.
+
+                TEMPLATE MANIFEST CONTEXT:
+                {manifest_str}
+                Pay special attention to 'hint_text' inside the manifest. It often contains extraction instructions.
+                If a manifest slot requires a merge (N:1), extract all relevant source facts to combine them.
+                If a manifest slot requires splitting (1:N), extract the source fact clearly.
+                Extract units carefully. If the template implies a unit (e.g., %), and the source has a different unit (e.g., points), extract the source unit and DO NOT silently coerce it.
+
+                AUTHORITY RULES:
+                {source_tags_str}
+                If a document is tagged with high authority (e.g., 'approval' or 'compliance'), its claims OVERRIDE conflicting narrative reports.
+                If multiple independent sources agree on a value, treat this agreement as high confidence evidence.
+
+                SOURCE CHUNK {i+1} OF {len(source_chunks)}:
+                {chunk}
+                {resolutions_str}
+                '''
+        else:
+            extraction_description = f'''
             Extract ALL information from the combined source documents into a structured, evidence-backed representation.
 
-            TEMPLATE MANIFEST CONTEXT:
-            {manifest_str}
-            Pay special attention to 'hint_text' inside the manifest. It often contains extraction instructions (e.g., "Insert approved indication" or "Requires 2 units").
-            If a manifest slot requires a merge (N:1), extract all relevant source facts to combine them.
-            If a manifest slot requires splitting (1:N), extract the source fact clearly.
-            Extract units carefully. If the template implies a unit (e.g., %), and the source has a different unit (e.g., points), extract the source unit and DO NOT silently coerce it.
+            EXTRACTION OBJECTIVE:
+            Capture both explicit values and semantically equivalent expressions that may later map to target template fields.
 
-            AUTHORITY RULES:
-            {source_tags_str}
-            If a document is tagged with high authority (e.g., 'approval' or 'compliance'), its claims OVERRIDE conflicting narrative reports.
-            If multiple independent sources agree on a value, treat this agreement as high confidence evidence.
+            RULES:
+            1. Do not omit any relevant information.
+            2. Preserve original wording, numbers, dates, tables, entities, and document context.
+            3. For every extracted item, include:
+            - normalized_field_candidate
+            - extracted_value
+            - source_text_span
+            - source_file
+            - section/context
+            - confidence (high/medium/low)
+            4. Extract values even if they are not written using the exact target field label.
+            5. Recognize semantically equivalent or logically related expressions.
+            6. If a value can reasonably represent a canonical business field, extract it as a candidate.
+            7. Do not hallucinate. Only extract values that are explicitly stated or strongly and directly supported by the surrounding text.
+            8. Keep both original text and normalized interpretation.
 
-            COMBINED SOURCES:
-            {safe_source_text}
+            CANONICAL EXTRACTION GOAL:
+            Where possible, normalize content into likely business fields such as:
+            employee_name, job_title, department, years_of_experience, current_employer,
+            key_skills, highest_education, certifications, email, phone, work_experience, education
+
+            SOURCE CHUNK {i+1} OF {len(source_chunks)}:
+            {chunk}
             {resolutions_str}
             '''
-    else:
-        extraction_description = f'''
-        Extract ALL information from the combined source documents into a structured, evidence-backed representation.
-
-        EXTRACTION OBJECTIVE:
-        Capture both explicit values and semantically equivalent expressions that may later map to target template fields.
-
-        RULES:
-        1. Do not omit any relevant information.
-        2. Preserve original wording, numbers, dates, tables, entities, and document context.
-        3. For every extracted item, include:
-        - normalized_field_candidate
-        - extracted_value
-        - source_text_span
-        - source_file
-        - section/context
-        - confidence (high/medium/low)
-        4. Extract values even if they are not written using the exact target field label.
-        5. Recognize semantically equivalent or logically related expressions, including:
-        - headings, titles, summaries, bullets, labels, and narrative sentences
-        - synonyms, paraphrases, abbreviations, and alternate phrasings
-        - values embedded in sentences rather than in labeled fields
-        6. If a value can reasonably represent a canonical business field, extract it as a candidate even when the wording differs.
-        7. For person/profile data, infer likely canonical field candidates where strongly supported by context. Examples:
-        - a document title like "Sarah Johnson - Resume" may indicate employee_name
-        - "8+ years of experience" may indicate years_of_experience
-        - current role/title near the top of the document may indicate job_title
-        - employer listed in the latest work history may indicate current_employer
-        8. Do not hallucinate. Only extract values that are explicitly stated or strongly and directly supported by the surrounding text.
-        9. If the same canonical field appears with different values across sources, flag:
-        CONFLICT: [canonical_field] - [value1] vs [value2]
-        10. Keep both original text and normalized interpretation.
-
-        CANONICAL EXTRACTION GOAL:
-        Where possible, normalize content into likely business fields such as:
-        employee_name, job_title, department, years_of_experience, current_employer,
-        key_skills, highest_education, certifications, email, phone, work_experience, education
-
-        COMBINED SOURCES:
-        {safe_source_text}
-        {resolutions_str}
-        '''
+            
+        extraction_task = Task(
+            description=extraction_description,
+            expected_output="A structured extraction result with candidates, values, source file names, and confidence levels.",
+            agent=extractor_agent
+        )
         
-    extraction_task = Task(
-        description=extraction_description,
-        expected_output="""
-        A structured extraction result with:
-        - canonical field candidates
-        - extracted values
-        - evidence/source text spans
-        - source file names
-        - confidence levels
-        - conflict flags where applicable
-        """,
-        agent=extractor_agent
-    )
+        chunk_crew = Crew(agents=[extractor_agent], tasks=[extraction_task], verbose=True)
+        try:
+            res = chunk_crew.kickoff()
+            extracted_results.append(f"--- EXTRACTED FACTS (PART {i+1}) ---\n{str(res)}")
+        except Exception as e:
+            print(f"Chunk extraction failed: {e}")
+            
+    combined_extraction = "\n\n".join(extracted_results)
+    safe_combined_extraction = escape_braces(combined_extraction)
 
     
     normalization_task = Task(
         description=f'''
         Normalize the extracted content into target-ready canonical fields before formatting.
+
+        EXTRACTED CONTENT FROM ALL SOURCES:
+        {safe_combined_extraction}
 
         OBJECTIVE:
         Resolve semantic variation between source wording and target template fields.
@@ -293,12 +311,10 @@ def run_conversion(source_text, reference_text, target_format="txt", resolutions
 
     crew = Crew(
         agents=[
-            extractor_agent,
             normalizer_agent,
             formatter_agent
         ],
         tasks=[
-            extraction_task,
             normalization_task,
             formatting_task
         ],

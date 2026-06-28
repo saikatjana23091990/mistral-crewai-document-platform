@@ -24,6 +24,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import MenuBookIcon from '@mui/icons-material/MenuBook'
 import CloseIcon from '@mui/icons-material/Close'
 import axios from 'axios'
+import { PROVIDERS_AND_MODELS } from '../utils/providerModels'
 
 const API_BASE_URL = 'http://localhost:8000'
 
@@ -33,7 +34,14 @@ const ChatWithDocument = () => {
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState("groq")
+  const [selectedModel, setSelectedModel] = useState(PROVIDERS_AND_MODELS['groq'].models[0].id)
   const [guideOpen, setGuideOpen] = useState(false)
+  const [suggestions, setSuggestions] = useState([
+    'Summarize the key findings from these documents.',
+    'What are the main risks mentioned?',
+    'Can you extract the numerical data into a list?',
+    'What are the next steps or recommendations?'
+  ])
 
   // Session state for history
   const [sessions, setSessions] = useState(() => {
@@ -98,12 +106,50 @@ const ChatWithDocument = () => {
     fetchHistory()
     axios.get(`${API_BASE_URL}/settings`)
       .then(res => {
-        if (res.data && res.data.provider) {
+        if (res.data && res.data.provider && PROVIDERS_AND_MODELS[res.data.provider]) {
           setSelectedProvider(res.data.provider)
+          if (res.data.model && PROVIDERS_AND_MODELS[res.data.provider].models.some(m => m.id === res.data.model)) {
+            setSelectedModel(res.data.model)
+          } else {
+            setSelectedModel(PROVIDERS_AND_MODELS[res.data.provider].models[0].id)
+          }
         }
       })
       .catch(err => console.error("Failed to load default provider", err))
   }, [])
+
+  const handleProviderChange = (e) => {
+    const newProv = e.target.value;
+    setSelectedProvider(newProv);
+    setSelectedModel(PROVIDERS_AND_MODELS[newProv].models[0].id);
+  }
+
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (activeDocuments.length === 0) {
+        setSuggestions([
+          'Summarize the key findings from these documents.',
+          'What are the main risks mentioned?',
+          'Can you extract the numerical data into a list?',
+          'What are the next steps or recommendations?'
+        ])
+        return
+      }
+      try {
+        const res = await axios.post(`${API_BASE_URL}/chat/suggestions`, {
+          filenames: activeDocuments,
+          provider: selectedProvider,
+          model: selectedModel
+        })
+        if (res.data && res.data.suggestions) {
+          setSuggestions(res.data.suggestions)
+        }
+      } catch (err) {
+        console.error("Failed to fetch suggestions", err)
+      }
+    }
+    fetchSuggestions()
+  }, [activeDocuments, selectedProvider, selectedModel])
 
   useEffect(() => {
     if (chatScrollRef.current) {
@@ -140,6 +186,8 @@ const ChatWithDocument = () => {
       for (const file of files) {
         const formData = new FormData()
         formData.append('file', file)
+        formData.append('provider', selectedProvider)
+        formData.append('model', selectedModel)
         const res = await axios.post(`${API_BASE_URL}/chat/upload`, formData)
         uploadedDocs.push(res.data.filename)
       }
@@ -211,7 +259,8 @@ const ChatWithDocument = () => {
         filenames: activeDocuments,
         question: userMsg.text,
         history: chatHistory,
-        provider: selectedProvider
+        provider: selectedProvider,
+        model: selectedModel
       })
       
       const botMsg = {
@@ -401,12 +450,15 @@ const ChatWithDocument = () => {
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="caption" color="text.secondary">Model</Typography>
-              <Select value={selectedProvider} onChange={(e) => setSelectedProvider(e.target.value)} size="small" sx={{ height: 32, fontSize: '0.85rem', bgcolor: 'white', borderRadius: 2, '& fieldset': { border: 'none' }, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                <MenuItem value="groq">GroqCloud</MenuItem>
-                <MenuItem value="openrouter">OpenRouter</MenuItem>
-                <MenuItem value="mistral">Mistral AI</MenuItem>
-                <MenuItem value="gemini">Google Gemini</MenuItem>
-                <MenuItem value="bedrock">AWS Bedrock</MenuItem>
+              <Select value={selectedProvider} onChange={handleProviderChange} size="small" sx={{ height: 32, fontSize: '0.85rem', bgcolor: 'white', borderRadius: 2, '& fieldset': { border: 'none' }, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                {Object.entries(PROVIDERS_AND_MODELS).map(([key, data]) => (
+                  <MenuItem key={key} value={key}>{data.name}</MenuItem>
+                ))}
+              </Select>
+              <Select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)} size="small" sx={{ height: 32, fontSize: '0.85rem', bgcolor: 'white', borderRadius: 2, '& fieldset': { border: 'none' }, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', ml: 1 }}>
+                {PROVIDERS_AND_MODELS[selectedProvider].models.map(m => (
+                  <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
+                ))}
               </Select>
             </Box>
           </Box>
@@ -424,7 +476,7 @@ const ChatWithDocument = () => {
                     <Box sx={{ px: 4 }}>
                       <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600, color: 'text.secondary' }}>Suggestions to get started:</Typography>
                       <Grid container spacing={2}>
-                        {['Summarize the key findings from these documents.', 'What are the main risks mentioned?', 'Can you extract the numerical data into a list?', 'What are the next steps or recommendations?'].map((sug, i) => (
+                        {suggestions.map((sug, i) => (
                           <Grid item xs={12} sm={6} key={i}>
                             <Paper 
                               onClick={() => { setQuestion(sug); setTimeout(() => handleSendMessage(), 100); }}

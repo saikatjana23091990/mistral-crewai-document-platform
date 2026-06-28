@@ -9,6 +9,7 @@ langchain-mistralai
 langchain-text-splitters
 chromadb
 pymupdf
+pymupdf4llm
 python-docx
 pandas
 openpyxl
@@ -24,3 +25,10 @@ boto3
 httpx
 python-pptx
 openai
+fpdf2
+langdetect
+mammoth
+markdownify
+markdown
+htmldocx
+openpyxl
