@@ -988,12 +988,14 @@ async def preview_mapping(
 
     target_format = get_target_format(reference_file.filename)
 
-    # ── PPTX: use manifest-based AI preview ──
-    if target_format == "pptx":
+    # ── AI PREVIEW (pptx, xlsx, docx) ──
+    if target_format in ["pptx", "xlsx", "docx"]:
         from app.services.template_manifest import build_field_manifest
-        manifest_slots = build_field_manifest(str(reference_path))
-        if not manifest_slots:
-            manifest_slots = [{"slot_id": "fallback", "target_label": col, "hint_text": ""} for col in ["Title", "Subtitle", "Content"]]
+        manifest_slots = None
+        if target_format == "pptx":
+            manifest_slots = build_field_manifest(str(reference_path))
+            if not manifest_slots:
+                manifest_slots = [{"slot_id": "fallback", "target_label": col, "hint_text": ""} for col in ["Title", "Subtitle", "Content"]]
 
         combined_source_text = "\n\n".join([f"--- SOURCE: {sd['name']} ---\n{sd['text']}" for sd in source_data_list])
 
@@ -1026,19 +1028,56 @@ async def preview_mapping(
 
             data = json.loads(cleaned_text)
             fields = data.get("fields", {})
+            tables = data.get("tables", [])
 
-            for slot in manifest_slots:
-                target_label = slot["target_label"]
-                mapped_obj = fields.get(target_label, {})
+            # Extract target labels
+            target_labels = []
+            reference_columns = []
+            if target_format == "xlsx":
+                reference_columns = _get_reference_columns(str(reference_path))
+
+            if manifest_slots:
+                target_labels = [slot["target_label"] for slot in manifest_slots]
+            else:
+                target_labels = list(fields.keys())
+                for tbl in tables:
+                    for h in tbl.get("headers", []):
+                        if h and h not in target_labels:
+                            target_labels.append(h)
+                
+                if reference_columns:
+                    for col in reference_columns:
+                        if col not in target_labels:
+                            target_labels.append(col)
+
+            for target_label in target_labels:
+                mapped_obj = fields.get(target_label)
+                
+                # If not in fields, maybe it's in a table?
+                if mapped_obj is None and tables:
+                    for tbl in tables:
+                        headers = tbl.get("headers", [])
+                        if target_label in headers:
+                            idx = headers.index(target_label)
+                            rows = tbl.get("rows", [])
+                            if rows and len(rows[0]) > idx:
+                                mapped_obj = str(rows[0][idx])
+                            else:
+                                mapped_obj = "Table Column"
+                            break
+
+                if mapped_obj is None:
+                    mapped_obj = {}
+
                 conflicting_options = []
 
                 if isinstance(mapped_obj, str):
                     val = mapped_obj
-                    conf = 80
+                    conf = 85
                     status = "Mapped"
                     color = "success.main"
                     doc = "Multiple"
-                    if val == "[Information not found in source documents]":
+                    if val == "[Information not found in source documents]" or val == "Table Column":
                         status = "Missing"
                         color = "error.main"
                         conf = None
@@ -1093,9 +1132,16 @@ async def preview_mapping(
                 })
 
         except Exception:
-            for slot in manifest_slots:
+            # Fallback for preview failure
+            target_labels = []
+            if target_format == "pptx" and manifest_slots:
+                target_labels = [s["target_label"] for s in manifest_slots]
+            elif target_format == "xlsx":
+                target_labels = _get_reference_columns(str(reference_path))
+            
+            for label in target_labels:
                 mappings.append({
-                    "target": slot["target_label"],
+                    "target": label,
                     "req": True,
                     "source": "Preview Failed - Will run full on Convert",
                     "doc": "-",
@@ -1108,10 +1154,8 @@ async def preview_mapping(
 
         return {"mappings": mappings}
 
-    # ── NON-PPTX (xlsx, docx, txt, pdf): use fast regex-based preview ──
-    reference_columns = _get_reference_columns(str(reference_path)) if target_format == "xlsx" else ["Customer Name", "Customer ID", "Industry", "Primary Contact", "Email", "Billing Address"]
-    if not reference_columns:
-        reference_columns = ["Quarter", "Region", "Total Sales", "Date", "Prepared By"]
+    # ── NON-AI FALLBACK (txt, pdf): use fast regex-based preview ──
+    reference_columns = ["Customer Name", "Customer ID", "Industry", "Primary Contact", "Email", "Billing Address"]
 
     mappings = []
     for idx, col in enumerate(reference_columns):
@@ -1134,7 +1178,6 @@ async def preview_mapping(
         if len(found_vals) > 0:
             unique_vals = list({fv["val"] for fv in found_vals})
             if len(unique_vals) > 1:
-                # Conflict!
                 source_field = "Conflict Detected"
                 doc = "Multiple"
                 conf = 50
@@ -1155,7 +1198,6 @@ async def preview_mapping(
             color = "warning.main"
             doc = source_data_list[0]["name"] if source_data_list else "-"
 
-        # Determine the full extracted value for the edit dialog
         extracted_value = ""
         if len(found_vals) > 0:
             unique_vals_list = list({fv["val"] for fv in found_vals})
