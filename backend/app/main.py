@@ -1546,3 +1546,52 @@ async def chat(payload: dict):
         return result
     except Exception as e:
         return {"answer": f"Error processing question: {str(e)}", "citations": []}
+
+@app.post("/chat/export-pdf")
+async def export_chat_pdf(payload: dict):
+    from fpdf import FPDF
+    import markdown
+    from fastapi.responses import Response
+
+    messages = payload.get("messages", [])
+    documents = payload.get("documents", [])
+    
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "Chat Conversation Export", new_x="LMARGIN", new_y="NEXT", align="C")
+    
+    if documents:
+        pdf.set_font("Helvetica", "I", 10)
+        pdf.multi_cell(0, 6, "Active Documents: " + ", ".join(documents), align="C")
+    
+    pdf.ln(10)
+    
+    for msg in messages:
+        msg_type = msg.get("type", "user")
+        text = msg.get("text", "")
+        
+        pdf.set_font("Helvetica", "B", 12)
+        if msg_type == "user":
+            pdf.set_text_color(41, 128, 185) # Blue for user
+            pdf.cell(0, 8, "User", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_text_color(0, 0, 0)
+            pdf.set_font("Helvetica", "", 11)
+            pdf.multi_cell(0, 6, text)
+        else:
+            pdf.set_text_color(39, 174, 96) # Green for bot
+            pdf.cell(0, 8, "AI Agent", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_text_color(0, 0, 0)
+            pdf.set_font("Helvetica", "", 11)
+            # Render Markdown text as HTML for FPDF
+            try:
+                html_text = markdown.markdown(text)
+                pdf.write_html(html_text)
+            except Exception as e:
+                # Fallback to plain text if HTML parsing fails
+                pdf.multi_cell(0, 6, text)
+        
+        pdf.ln(8)
+    
+    pdf_bytes = pdf.output()
+    return Response(content=bytes(pdf_bytes), media_type="application/pdf")

@@ -23,6 +23,8 @@ import ThumbDownOutlinedIcon from '@mui/icons-material/ThumbDownOutlined'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import MenuBookIcon from '@mui/icons-material/MenuBook'
 import CloseIcon from '@mui/icons-material/Close'
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import axios from 'axios'
 import { PROVIDERS_AND_MODELS } from '../utils/providerModels'
 
@@ -33,6 +35,7 @@ const ChatWithDocument = () => {
   const [question, setQuestion] = useState('')
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [exportingPDF, setExportingPDF] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState("groq")
   const [selectedModel, setSelectedModel] = useState(PROVIDERS_AND_MODELS['groq'].models[0].id)
   const [guideOpen, setGuideOpen] = useState(false)
@@ -295,6 +298,60 @@ const ChatWithDocument = () => {
     setActiveSessionId(newSession.id)
   }
 
+  const handleExportPDF = async () => {
+    if (messages.length === 0) {
+      alert("There are no messages to export.")
+      return
+    }
+    setExportingPDF(true)
+    try {
+      const res = await axios.post(`${API_BASE_URL}/chat/export-pdf`, {
+        messages: messages,
+        documents: activeDocuments
+      }, { responseType: 'blob' })
+      
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', 'chat_export.pdf')
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch (err) {
+      console.error("Failed to export PDF", err)
+      alert("Failed to export PDF.")
+    } finally {
+      setExportingPDF(false)
+    }
+  }
+
+  const handleExportSingleMessage = async (msg) => {
+    setExportingPDF(true)
+    try {
+      const res = await axios.post(`${API_BASE_URL}/chat/export-pdf`, {
+        messages: [msg],
+        documents: activeDocuments
+      }, { responseType: 'blob' })
+      
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', 'chat_response_export.pdf')
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch (err) {
+      console.error("Failed to export PDF", err)
+      alert("Failed to export response to PDF.")
+    } finally {
+      setExportingPDF(false)
+    }
+  }
+
+  const handleCopyMessage = (text) => {
+    navigator.clipboard.writeText(text).catch(err => console.error("Failed to copy text", err))
+  }
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Top Header */}
@@ -460,6 +517,16 @@ const ChatWithDocument = () => {
                   <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
                 ))}
               </Select>
+              <Button 
+                variant="outlined" 
+                size="small" 
+                onClick={handleExportPDF} 
+                disabled={exportingPDF || messages.length === 0}
+                startIcon={<PictureAsPdfIcon />} 
+                sx={{ ml: 2, height: 32, borderRadius: 2, textTransform: 'none', bgcolor: 'white', borderColor: '#E5E7EB', color: 'text.primary' }}
+              >
+                {exportingPDF ? 'Exporting...' : 'Export PDF'}
+              </Button>
             </Box>
           </Box>
 
@@ -524,6 +591,8 @@ const ChatWithDocument = () => {
                        <Box sx={{ display: 'flex', gap: 0.5 }}>
                           <IconButton size="small"><ThumbUpOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
                           <IconButton size="small"><ThumbDownOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
+                          <IconButton size="small" onClick={() => handleExportSingleMessage(msg)} disabled={exportingPDF} title="Export response to PDF"><PictureAsPdfIcon sx={{ fontSize: 16 }} /></IconButton>
+                          <IconButton size="small" onClick={() => handleCopyMessage(msg.text)} title="Copy response"><ContentCopyIcon sx={{ fontSize: 16 }} /></IconButton>
                        </Box>
                      </Box>
                    )}
